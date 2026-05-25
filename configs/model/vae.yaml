@@ -1,0 +1,19 @@
+# VAE baseline (latent reparam, no physics, no noise head).
+variant: vae
+
+latent_dim: 32
+encoder_dims: [16, 16]
+decoder_dims: [16, 16]
+activation: tanh
+
+latent_reparameterize: true
+predict_drift: false
+
+heads:
+  temp_derivative: false
+  k: true
+  k_activation: null
+  noise: false
+
+tref: 10.0
+t0: 46.02

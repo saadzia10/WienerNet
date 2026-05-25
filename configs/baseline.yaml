@@ -1,0 +1,25 @@
+# Top-level config for the baseline-training entrypoint (scripts/train_baseline.py).
+# Mirrors configs/config.yaml but omits the torch-specific groups
+# (training, loss) since RF/XGB use scikit-learn's fit/predict directly.
+defaults:
+  - data: east_anglia
+  - model: rf                # rf | xgb
+  - _self_
+
+seed: 42
+device: cpu                  # baselines run on CPU; included for symmetry
+run_name: ${model.variant}_seed${seed}
+
+mlflow:
+  enabled: true
+  experiment_name: wienernet_baselines
+  tracking_uri: null
+
+hydra:
+  run:
+    dir: outputs/${now:%Y-%m-%d_%H-%M-%S}_${run_name}
+  sweep:
+    dir: multirun/${now:%Y-%m-%d_%H-%M-%S}
+    subdir: ${model.variant}_seed${seed}
+  job:
+    chdir: false

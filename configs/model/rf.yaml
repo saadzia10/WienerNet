@@ -1,0 +1,13 @@
+# Random Forest baseline.
+# Matches the original notebook's RandomForestRegressor(n_estimators=100).
+variant: rf
+kind: sklearn                # signals scripts/train_baseline.py to use this
+
+# Hyperparameters
+n_estimators: 100
+max_depth: null              # null -> grow until pure
+min_samples_split: 2
+min_samples_leaf: 1
+max_features: 1.0            # all features (matches sklearn default behavior)
+n_jobs: -1
+bootstrap: true

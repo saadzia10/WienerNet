@@ -2,3 +2,37 @@
 *.idea*
 *.ipynb_checkpoints*
 .DS_Store*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# Hydra / training outputs
+outputs/
+multirun/
+mlruns/
+.hydra/
+
+# Run artefacts (TensorBoard logs, checkpoints, predictions)
+runs/
+checkpoints/
+*.pth
+!tests/**/*.pth      # tiny fixture weights for tests are OK to commit
+*.pickle
+!tests/**/*.pickle
+
+# Local dev
+.vscode/
+*.local.yaml

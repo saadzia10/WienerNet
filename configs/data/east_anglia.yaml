@@ -1,0 +1,51 @@
+# Dataset config for the East Anglia flux towers.
+# Override individual fields, e.g.:
+#   python scripts/train.py data.batch_size=256 data.exclude_sites='[woodwalton]'
+site_paths:
+  redmere_1:  data_manipulation/other_sites/redmere_1/final_night_data.parquet
+  redmere_2:  data_manipulation/other_sites/redmere_2/final_night_data.parquet
+  great_fen:  data_manipulation/other_sites/great_fen/final_night_data.parquet
+  rosedene:   data_manipulation/final_night_data.parquet
+  # Add wicken_fen and woodwalton via the CLI if you want to include them
+  # (the original paper excluded these without documentation):
+  # wicken_fen: data_manipulation/other_sites/wicken_fen/final_night_data.parquet
+  # woodwalton: data_manipulation/other_sites/woodwalton/final_night_data.parquet
+
+# Which subset to actually use. Leave include_sites empty to use all in site_paths.
+include_sites: []
+exclude_sites: []
+
+# Driver columns + flags for feature concatenation
+drivers: [Ta, H, Tau, RH, VPD, Rg, Ustar, Tsoil1]
+include_season: true
+include_time_vars: true
+include_site_xyz: true
+
+# Nighttime filter (input is already filtered to night, this is belt-and-braces)
+nighttime_only: true
+night_radiation_threshold: 20.0
+
+# Ground-truth column names
+nee_target_column: NEE_next
+boundary_nee_column: NEE
+e0_column: E0
+rb_column: rb
+temperature_column: Ta
+dtemp_column: dTa
+dnee_column: dNEE
+
+# Split strategy
+split_strategy: site_fraction    # 'site_fraction' or 'year'
+test_frac: 0.3
+test_years: []                   # used if split_strategy=year, e.g. [2018, 2019]
+shuffle_split: false
+split_random_state: 42
+
+# DataLoader knobs
+batch_size: 512
+num_workers: 0
+pin_memory: false
+persistent_workers: false
+
+# Where to save the fitted StandardScaler relative to the run dir
+save_scaler_filename: scaler.pkl

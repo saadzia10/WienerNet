@@ -1,0 +1,22 @@
+# Ablation: same architecture as piae_sde_sampling but does NOT add drift to nee_pred.
+# The SDE term still trains via mse_drift loss but isn't used in the forecast path.
+variant: piae_sde_reg_sampling
+
+latent_dim: 32
+encoder_dims: [16, 16]
+decoder_dims: [16, 16]
+activation: relu
+
+latent_reparameterize: false
+predict_drift: false             # nee_pred = bnee (no drift step)
+
+heads:
+  temp_derivative: true
+  k: true
+  k_activation: leaky_relu
+  k_activation_slope: 0.01
+  noise: true
+  noise_dims: [4]
+
+tref: 10.0
+t0: 46.02

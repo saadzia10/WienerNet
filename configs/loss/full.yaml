@@ -1,0 +1,24 @@
+# All loss terms enabled — matches piae_sde_sampling Trainer's defaults.
+# Set any to 0 to ablate a term without code changes.
+weights:
+  # MSE — point-wise
+  mse_nee: 1.0
+  mse_bnee: 1.0
+  mse_E0: 1.0
+  mse_rb: 1.0
+  mse_temp_derivative: 1.0
+  mse_drift: 1.0
+
+  # MMD — distributional
+  mmd_nee: 1.0
+  mmd_bnee: 1.0
+  mmd_noise: 1.0
+
+  # KL (off by default; only meaningful for VAE-style latent)
+  kl_latent: 0.0
+
+# MMD kernel knobs
+mmd:
+  kernel_mul: 2.0
+  kernel_num: 5
+  fix_sigma: null

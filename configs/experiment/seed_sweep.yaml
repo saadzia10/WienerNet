@@ -1,0 +1,13 @@
+# @package _global_
+# Multirun example. Invoke with:
+#   python scripts/train.py -m experiment=seed_sweep
+defaults:
+  - override /model: piae_sde_sampling
+  - override /loss: full
+
+run_name: sweep_seed${seed}
+
+hydra:
+  sweeper:
+    params:
+      seed: 0,1,2,41,88,128,256

@@ -1,0 +1,19 @@
+# AE baseline: only nee + k MSE; no MMD or noise.
+weights:
+  mse_nee: 1.0
+  mse_E0: 1.0
+  mse_rb: 1.0
+
+  # Everything else off (no physics heads, no noise sampling, no MMD)
+  mse_bnee: 0.0
+  mse_temp_derivative: 0.0
+  mse_drift: 0.0
+  mmd_nee: 0.0
+  mmd_bnee: 0.0
+  mmd_noise: 0.0
+  kl_latent: 0.0
+
+mmd:
+  kernel_mul: 2.0
+  kernel_num: 5
+  fix_sigma: null

@@ -1,0 +1,19 @@
+# For piae_sde_reg_sampling — no bnee head, so disable mse_bnee and mmd_bnee.
+weights:
+  mse_nee: 1.0
+  mse_bnee: 0.0
+  mse_E0: 1.0
+  mse_rb: 1.0
+  mse_temp_derivative: 1.0
+  mse_drift: 1.0
+
+  mmd_nee: 1.0
+  mmd_bnee: 0.0
+  mmd_noise: 1.0
+
+  kl_latent: 0.0
+
+mmd:
+  kernel_mul: 2.0
+  kernel_num: 5
+  fix_sigma: null

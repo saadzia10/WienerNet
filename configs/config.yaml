@@ -1,0 +1,33 @@
+# Base config. Compose group defaults from configs/{data,model,training,loss}/*.
+# Override any field on the CLI: python scripts/train.py model=ae loss=ae seed=88
+defaults:
+  - data: east_anglia
+  - model: piae_sde_sampling
+  - training: default
+  - loss: full
+  - _self_
+
+# Global flags
+seed: 42
+deterministic: true              # set_seed_globally + torch.use_deterministic_algorithms
+device: cuda                     # 'cuda' | 'cpu' | 'mps'
+run_name: ${model.variant}_seed${seed}   # used in the output dir name
+
+# MLflow experiment tracking. Set enabled=false to skip MLflow entirely.
+# tracking_uri=null falls back to a local ./mlruns directory.
+mlflow:
+  enabled: true
+  experiment_name: wienernet
+  tracking_uri: null
+
+# Hydra runtime settings
+hydra:
+  run:
+    dir: outputs/${now:%Y-%m-%d_%H-%M-%S}_${run_name}
+  sweep:
+    # Parent dir is timestamp-only; per-job subdirs encode the variant + seed
+    # so a multirun produces clearly-named children like `piae_sde_sampling_42/`.
+    dir: multirun/${now:%Y-%m-%d_%H-%M-%S}
+    subdir: ${model.variant}_seed${seed}
+  job:
+    chdir: false                 # keep cwd at repo root so data paths resolve

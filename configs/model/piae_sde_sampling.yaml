@@ -1,0 +1,23 @@
+# Full physics-informed AE with noise sampling + SDE drift.
+# Equivalent to the original PIAE_SDE_Sampling_Model + Trainer combo.
+variant: piae_sde_sampling
+
+latent_dim: 32
+encoder_dims: [16, 16]
+decoder_dims: [16, 16]
+activation: relu
+
+latent_reparameterize: false
+predict_drift: true              # nee_pred = bnee + drift
+
+heads:
+  temp_derivative: true
+  k: true
+  k_activation: leaky_relu
+  k_activation_slope: 0.01
+  noise: true
+  noise_dims: [4]
+
+# Physics constants
+tref: 10.0
+t0: 46.02

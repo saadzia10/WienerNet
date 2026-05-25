@@ -149,8 +149,7 @@ class PIAE_SDE_Sampling_Trainer:
                 test_losses.mse_temp_loss.append(mse_loss_temp)
                 test_losses.physics_loss.append(physics_loss)
                 test_losses.mse_f_loss.append(mse_loss_f)
-
-            test_loss.append(loss.cpu().detach().numpy())
+                test_loss.append(loss.cpu().detach().numpy())
 
             print(colored("Test Loss: {}".format(np.mean(test_loss)), "red"))
             self.writer.add_scalar(f"Test Loss", np.mean(test_loss), epoch)
@@ -161,8 +160,8 @@ class PIAE_SDE_Sampling_Trainer:
                 self.writer.add_scalar(f"Test Loss [{col}]", np.mean(l), epoch)
             print("\n\n")
 
-            # Save best model
-            if epoch % 5 == 0 and np.mean(test_loss) < best_test_loss:
+            # Save best model whenever test loss improves
+            if np.mean(test_loss) < best_test_loss:
                 best_test_loss = np.mean(test_loss)
                 torch.save(model.state_dict(), best_model_path)
                 print(colored(f'New best model saved at epoch {epoch + 1} with test loss: {best_test_loss:.4f}',
@@ -406,9 +405,12 @@ class PIAE_SDE_Sampling_Model(nn.Module):
         self.E0 = k[:, 0].view((-1, 1))
         self.rb = k[:, 1].view((-1, 1))
 
-        # Compute dNEE/dT using predicted E0 and rb
-        self.exp_term = torch.exp(self.E0 * (1.0 / (self.Tref - self.T0) - 1.0 / (T - self.T0))).view((-1, 1))
-        self.dNEE_dT = self.rb * (self.E0 / (T - self.T0) ** 2) * self.exp_term
+        # Compute dNEE/dT using predicted E0 and rb.
+        # Lloyd-Taylor (Reichstein 2005) uses T0 = -46.02 °C, so the denominators
+        # are (T - T0) = (T + 46.02). T0 is stored here as a positive number to
+        # match the parameter-fitting convention in data_pipeline/partitioning.py.
+        self.exp_term = torch.exp(self.E0 * (1.0 / (self.Tref + self.T0) - 1.0 / (T + self.T0))).view((-1, 1))
+        self.dNEE_dT = self.rb * (self.E0 / (T + self.T0) ** 2) * self.exp_term
 
         residual = torch.zeros_like(nee)
 

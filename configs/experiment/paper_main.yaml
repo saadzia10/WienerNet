@@ -1,0 +1,17 @@
+# @package _global_
+# The paper's headline result: PIAE_SDE_Sampling, 7 seeds, year-based split.
+# Use as: python scripts/train.py experiment=paper_main
+defaults:
+  - override /model: piae_sde_sampling
+  - override /loss: full
+
+run_name: paper_main_seed${seed}
+seed: 42
+deterministic: true
+
+training:
+  num_epochs: 120
+
+data:
+  split_strategy: year
+  test_years: [2018, 2019]

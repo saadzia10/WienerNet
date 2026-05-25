@@ -94,8 +94,8 @@ class AE_Trainer:
                 self.writer.add_scalar(f"Test Loss [{col}] MSE", np.mean(l), epoch)
             print("\n\n")
 
-            # Save best model
-            if epoch % 5 == 0 and np.mean(test_loss) < best_test_loss:
+            # Save best model whenever test loss improves
+            if np.mean(test_loss) < best_test_loss:
                 best_test_loss = np.mean(test_loss)
                 torch.save(model.state_dict(), best_model_path)
                 print(colored(f'New best model saved at epoch {epoch + 1} with test loss: {best_test_loss:.4f}',

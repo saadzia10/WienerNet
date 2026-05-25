@@ -1,0 +1,22 @@
+# Variational version: encoder produces (mu, logvar) for the latent z, then samples.
+# Same forward semantics as piae_sde_sampling otherwise.
+variant: pivae_sde_sampling
+
+latent_dim: 32
+encoder_dims: [16, 16]
+decoder_dims: [16, 16]
+activation: tanh
+
+latent_reparameterize: true      # VAE-style z = reparam(latent_mu, latent_logvar)
+predict_drift: true
+
+heads:
+  temp_derivative: true
+  k: true
+  k_activation: leaky_relu
+  k_activation_slope: 0.01
+  noise: true
+  noise_dims: [4]
+
+tref: 10.0
+t0: 46.02

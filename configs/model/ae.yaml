@@ -1,0 +1,19 @@
+# Vanilla autoencoder baseline. No physics, no noise head, no SDE drift.
+variant: ae
+
+latent_dim: 32
+encoder_dims: [16, 16]
+decoder_dims: [16, 16]
+activation: relu
+
+latent_reparameterize: false
+predict_drift: false
+
+heads:
+  temp_derivative: false
+  k: true
+  k_activation: null               # use same activation as the rest
+  noise: false
+
+tref: 10.0
+t0: 46.02

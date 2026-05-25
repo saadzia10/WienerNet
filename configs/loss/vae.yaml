@@ -1,0 +1,18 @@
+# VAE baseline: nee + k MSE + KL on latent.
+weights:
+  mse_nee: 1.0
+  mse_E0: 1.0
+  mse_rb: 1.0
+  kl_latent: 1.0e-3                # small β-VAE-style weight
+
+  mse_bnee: 0.0
+  mse_temp_derivative: 0.0
+  mse_drift: 0.0
+  mmd_nee: 0.0
+  mmd_bnee: 0.0
+  mmd_noise: 0.0
+
+mmd:
+  kernel_mul: 2.0
+  kernel_num: 5
+  fix_sigma: null
