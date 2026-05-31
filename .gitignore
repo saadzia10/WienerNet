@@ -33,6 +33,10 @@ checkpoints/
 *.pickle
 !tests/**/*.pickle
 
+# Generated notebook artifacts
+notebooks/manuscript_plots/
+notebooks/*_executed.ipynb
+
 # Local dev
 .vscode/
 *.local.yaml
