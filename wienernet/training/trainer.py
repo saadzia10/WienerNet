@@ -228,7 +228,12 @@ class Trainer:
         else:
             self.model.eval()
 
-        loss_acc: dict[str, list[float]] = defaultdict(list)
+        # Accumulate per-batch losses as detached GPU tensors and sync to host
+        # once, at epoch end. Calling .item() per batch (and per loss term) forces
+        # a CUDA sync each step, stalling the GPU between batches — for this small,
+        # fast model that synchronization dominated the epoch time.
+        loss_sums: dict[str, torch.Tensor] = {}
+        n_batches = 0
         ctx = torch.enable_grad() if train else torch.no_grad()
         with ctx:
             for batch_idx, batch in enumerate(loader):
@@ -262,14 +267,27 @@ class Trainer:
                     self.optimizer.step()
                     self.global_step += 1
 
-                loss_acc["loss"].append(total.item())
+                n_batches += 1
+                self._accumulate(loss_sums, "loss", total)
                 for name, val in losses.items():
-                    loss_acc[name].append(val.item())
+                    self._accumulate(loss_sums, name, val)
 
                 if train and self.log_every_n_steps and self.global_step % self.log_every_n_steps == 0:
                     self._log_step(losses, total, epoch)
 
-        return {name: float(np.mean(vals)) for name, vals in loss_acc.items()}
+        if n_batches == 0:
+            return {}
+        return {name: (total_sum / n_batches).item() for name, total_sum in loss_sums.items()}
+
+    @staticmethod
+    def _accumulate(sums: dict[str, torch.Tensor], name: str, value: torch.Tensor) -> None:
+        """Add a detached scalar loss into a running GPU-side sum without a host sync."""
+        detached = value.detach()
+        if name in sums:
+            sums[name] += detached
+        else:
+            # clone so we own the accumulator and don't alias `value`'s storage
+            sums[name] = detached.clone()
 
     def _to_device(self, batch: Mapping[str, Any]) -> dict[str, torch.Tensor]:
         """Move all tensor batch entries to the trainer device."""

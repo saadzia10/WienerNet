@@ -42,6 +42,10 @@ def set_seed_globally(seed: int, deterministic: bool = True) -> None:
     torch.cuda.manual_seed_all(seed)
 
     if deterministic:
+        # With CUDA >= 10.2, deterministic cuBLAS GEMMs require a fixed
+        # workspace config set *before* the first cuBLAS handle is created.
+        # Setting it here (run startup) is early enough.
+        os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
         torch.use_deterministic_algorithms(True)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
