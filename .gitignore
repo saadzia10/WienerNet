@@ -23,6 +23,7 @@ env/
 outputs/
 multirun/
 mlruns/
+mlflow.db
 .hydra/
 
 # Run artefacts (TensorBoard logs, checkpoints, predictions)
