@@ -178,3 +178,31 @@ def test_cross_seed_pivot_returns_wide_table():
     pivot = cross_seed_pivot(df, target="nee", resolution="raw")
     assert set(pivot.index) == {"ae", "piae"}
     assert set(pivot.columns) == {"mae", "r2", "mmd"}
+
+
+def test_increment_correlation_by_lag_perfect_and_contiguous():
+    """dNEE proportional to dReco -> |corr|=1; a gap breaks contiguity."""
+    from wienernet.evaluation import increment_correlation_by_lag
+
+    n = 400
+    times = pd.date_range("2020-01-01", periods=n, freq="30min")
+    rng = np.random.default_rng(0)
+    Ta = np.cumsum(rng.normal(0, 0.3, n)) + 10.0
+    E0 = np.full(n, 300.0)
+    rb = np.full(n, 2.0)
+    from wienernet.data.features import physics_nee_numpy
+    reco = physics_nee_numpy(E0, rb, Ta)
+    df = pd.DataFrame({"DateTime": times, "NEE": 2.0 * reco, "Ta": Ta, "E0": E0, "rb": rb})
+
+    res = increment_correlation_by_lag({"s": df}, lags=(1, 2, 4), min_pairs=10)
+    # NEE = 2*Reco exactly -> increment correlates perfectly with the Reco increment
+    for _, row in res[res.site == "pooled"].iterrows():
+        assert abs(abs(row["corr_dReco"]) - 1.0) < 1e-6
+    assert set(res["lag"]) == {1, 2, 4}
+    assert (res["hours"] == res["lag"] * 0.5).all()
+
+    # Insert a 1h gap (skip a timestamp) -> those spanning pairs are excluded
+    df2 = df.drop(index=100).reset_index(drop=True)
+    res2 = increment_correlation_by_lag({"s": df2}, lags=(1,), min_pairs=10)
+    assert res2[res2.site == "s"]["n"].iloc[0] < len(df2) - 1  # at least the gap pair dropped
+

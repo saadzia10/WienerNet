@@ -44,6 +44,7 @@ from .reporter import (
     save_metrics_tables,
     standard_errors,
 )
+from .timescale import increment_correlation_by_lag, plot_increment_correlation
 
 __all__ = [
     # metrics
@@ -54,6 +55,7 @@ __all__ = [
     # reporter
     "metrics_to_long_dataframe", "standard_errors", "parametric_summary",
     "cross_seed_pivot", "save_metrics_tables",
+    "increment_correlation_by_lag", "plot_increment_correlation",
     # plots: style + helpers
     "setup_paper_style", "COLORS", "compute_gt_noise",
     "daily_window_mask", "weekly_window_mask", "monthly_window_mask", "quarterly_window_mask",
