@@ -5,12 +5,13 @@ defaults:
   - model: piae_sde_sampling
   - training: default
   - loss: full
+  - experiment: null
   - _self_
 
 # Global flags
 seed: 42
 deterministic: true              # set_seed_globally + torch.use_deterministic_algorithms
-device: mps                     # 'cuda' | 'cpu' | 'mps'
+device: cuda                     # 'cuda' | 'cpu' | 'mps'
 run_name: ${model.variant}_seed${seed}   # used in the output dir name
 
 # MLflow experiment tracking. Set enabled=false to skip MLflow entirely.

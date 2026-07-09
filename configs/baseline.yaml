@@ -3,7 +3,7 @@
 # (training, loss) since RF/XGB use scikit-learn's fit/predict directly.
 defaults:
   - data: east_anglia
-  - model: rf                # rf | xgb
+  - model: xgb                # rf | xgb
   - _self_
 
 seed: 42
