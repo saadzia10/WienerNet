@@ -106,6 +106,74 @@ def standard_errors(
     return summary
 
 
+def _t_critical_95(df: int) -> float:
+    """Two-sided 95% t critical value with `df` degrees of freedom.
+
+    Uses scipy when available; otherwise a small lookup table (df 1-30) with
+    a normal-approximation fallback for larger df. Returns nan for df < 1.
+    """
+    if df < 1:
+        return np.nan
+    try:
+        from scipy.stats import t as _t
+
+        return float(_t.ppf(0.975, df))
+    except Exception:  # scipy missing — table + normal tail fallback
+        table = {
+            1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571, 6: 2.447,
+            7: 2.365, 8: 2.306, 9: 2.262, 10: 2.228, 11: 2.201, 12: 2.179,
+            13: 2.160, 14: 2.145, 15: 2.131, 16: 2.120, 17: 2.110, 18: 2.101,
+            19: 2.093, 20: 2.086, 21: 2.080, 22: 2.074, 23: 2.069, 24: 2.064,
+            25: 2.060, 26: 2.056, 27: 2.052, 28: 2.048, 29: 2.045, 30: 2.042,
+        }
+        return table.get(df, 1.96)
+
+
+def parametric_summary(
+    long_df: pd.DataFrame,
+    *,
+    group_cols: Iterable[str] = ("variant", "resolution", "target", "metric"),
+    value_col: str = "value",
+) -> pd.DataFrame:
+    """Classic mean ± SD / SEM with a t-based 95% CI per group.
+
+    Complements `standard_errors` (which is robust: median + MAD). Use this
+    when quoting headline numbers as mean ± SD and an honest interval on the
+    mean for small seed counts (the CI uses the t distribution, df = n-1).
+
+    Returns a DataFrame indexed by `group_cols` with columns:
+        n_runs, mean, sd, sem, ci95_lo, ci95_hi
+    where `sd` is the sample standard deviation (ddof=1), `sem = sd/sqrt(n)`,
+    and `ci95 = mean ± t_{n-1,0.975} * sem`.
+    """
+    group_cols = list(group_cols)
+
+    def _stats(s: pd.Series) -> pd.Series:
+        v = s.dropna().to_numpy()
+        n = len(v)
+        if n == 0:
+            return pd.Series({k: np.nan for k in
+                              ("n_runs", "mean", "sd", "sem", "ci95_lo", "ci95_hi")})
+        mean = float(np.mean(v))
+        if n == 1:
+            return pd.Series({"n_runs": 1, "mean": mean, "sd": np.nan,
+                              "sem": np.nan, "ci95_lo": mean, "ci95_hi": mean})
+        sd = float(np.std(v, ddof=1))
+        sem = sd / np.sqrt(n)
+        half = _t_critical_95(n - 1) * sem
+        return pd.Series({"n_runs": n, "mean": mean, "sd": sd, "sem": sem,
+                          "ci95_lo": mean - half, "ci95_hi": mean + half})
+
+    summary = (
+        long_df.groupby(group_cols, sort=False)[value_col]
+        .apply(_stats)
+        .unstack()
+        .reset_index()
+    )
+    summary["n_runs"] = summary["n_runs"].astype("Int64")
+    return summary
+
+
 def cross_seed_pivot(
     long_df: pd.DataFrame,
     *,
@@ -138,7 +206,8 @@ def save_metrics_tables(
     out_dir: str | Path,
     standard_error_groups: Iterable[str] = ("variant", "resolution", "target", "metric"),
 ) -> dict[str, Path]:
-    """Write a `long.csv` and a `summary.csv` (median+MAD) to out_dir.
+    """Write `long.csv`, a robust `summary.csv` (median+MAD), and a
+    `parametric_summary.csv` (mean ± SD/SEM with a t-based 95% CI) to out_dir.
 
     Returns paths so the caller can log them.
     """
@@ -146,7 +215,10 @@ def save_metrics_tables(
     out_dir.mkdir(parents=True, exist_ok=True)
     long_path = out_dir / "long.csv"
     summary_path = out_dir / "summary.csv"
+    parametric_path = out_dir / "parametric_summary.csv"
     long_df.to_csv(long_path, index=False)
     standard_errors(long_df, group_cols=standard_error_groups).to_csv(summary_path, index=False)
-    log.info("wrote %s (%d rows) and %s", long_path, len(long_df), summary_path)
-    return {"long": long_path, "summary": summary_path}
+    parametric_summary(long_df, group_cols=standard_error_groups).to_csv(parametric_path, index=False)
+    log.info("wrote %s (%d rows), %s and %s",
+             long_path, len(long_df), summary_path, parametric_path)
+    return {"long": long_path, "summary": summary_path, "parametric": parametric_path}

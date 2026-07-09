@@ -40,6 +40,7 @@ from .plots import (
 from .reporter import (
     cross_seed_pivot,
     metrics_to_long_dataframe,
+    parametric_summary,
     save_metrics_tables,
     standard_errors,
 )
@@ -51,7 +52,8 @@ __all__ = [
     # aggregations
     "Resolution", "add_time_buckets", "aggregate_by_bucket", "evaluate_at_resolutions",
     # reporter
-    "metrics_to_long_dataframe", "standard_errors", "cross_seed_pivot", "save_metrics_tables",
+    "metrics_to_long_dataframe", "standard_errors", "parametric_summary",
+    "cross_seed_pivot", "save_metrics_tables",
     # plots: style + helpers
     "setup_paper_style", "COLORS", "compute_gt_noise",
     "daily_window_mask", "weekly_window_mask", "monthly_window_mask", "quarterly_window_mask",
