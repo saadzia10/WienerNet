@@ -33,7 +33,7 @@ log = get_logger("training.trainer")
 
 
 # Map dataset keys to training inputs (matches ClimateDataset.__getitem__).
-_BATCH_KEYS = ("X", "k", "T", "dNEE", "bNEE", "dT", "NEE")
+_BATCH_KEYS = ("X", "k", "T", "dNEE", "bNEE", "dT", "NEE", "dt")
 
 
 class Trainer:
@@ -172,7 +172,7 @@ class Trainer:
 
         for batch in loader:
             batch = self._to_device(batch)
-            outputs = self.model(batch["X"], batch["bNEE"], batch["k"], batch["T"])
+            outputs = self.model(batch["X"], batch["bNEE"], batch["k"], batch["T"], batch.get("dt"))
 
             # Ground truth: rename a couple keys to match original convention
             gt_buckets["nee"].append(batch["NEE"].detach().cpu().numpy())
@@ -242,7 +242,7 @@ class Trainer:
                 if train:
                     self.optimizer.zero_grad(set_to_none=True)
 
-                outputs = self.model(batch["X"], batch["bNEE"], batch["k"], batch["T"])
+                outputs = self.model(batch["X"], batch["bNEE"], batch["k"], batch["T"], batch.get("dt"))
                 losses = compute_losses(
                     batch,
                     outputs,

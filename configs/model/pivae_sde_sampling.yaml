@@ -16,7 +16,9 @@ heads:
   k_activation: leaky_relu
   k_activation_slope: 0.01
   noise: true
+  noise_zero_mean: false   # true -> noise = eps*sigma(z), zero conditional mean
   noise_dims: [4]
 
 tref: 10.0
 t0: 46.02
+dt: 30.0                          # Euler step size (minutes); data cadence

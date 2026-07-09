@@ -21,6 +21,7 @@ from torch.utils.data import DataLoader
 from data_pipeline.config import SITES
 
 from .dataset import ClimateDataset
+from .rescale import rescale_to_timestep
 from .features import (
     add_site_vector_for,
     add_time_vars,
@@ -235,6 +236,8 @@ def build_dataloaders(
     temperature_column: str = "Ta",
     dtemp_column: str = "dTa",
     dnee_column: str = "dNEE",
+    dt_column: str = "dt",
+    time_step_k: int | None = None,
     split_strategy: str = "site_fraction",
     test_frac: float = 0.3,
     test_years: Iterable[int] = (),
@@ -276,6 +279,20 @@ def build_dataloaders(
         combined[nee_target_column] = combined.groupby("site")["NEE"].shift(-1)
         combined = combined.dropna(subset=[nee_target_column]).reset_index(drop=True)
 
+    # Time-scale preprocessing: rebuild the targets (NEE_{t+k}, dNEE, dTa, dt) at a
+    # k-step horizon within each contiguous night, dropping rows whose k-step-ahead
+    # crosses a night boundary. time_step_k=None -> native 30-min columns unchanged.
+    if time_step_k is not None:
+        before = len(combined)
+        combined = rescale_to_timestep(
+            combined, int(time_step_k),
+            nee_target_column=nee_target_column, dtemp_column=dtemp_column,
+            dnee_column=dnee_column, dt_column=dt_column,
+            temperature_column=temperature_column,
+        )
+        log.info("rescaled to k=%d (%d min step): %d -> %d rows",
+                 int(time_step_k), int(time_step_k) * 30, before, len(combined))
+
     # Train/test split
     if split_strategy == "site_fraction":
         train_df, test_df = split_data_by_site_fraction(
@@ -312,6 +329,13 @@ def build_dataloaders(
     noise_residuals = (train_df["NEE"].values - nee_phys_train).astype(np.float32)
     noise_residuals = noise_residuals[np.isfinite(noise_residuals)]
 
+    # Per-row dt (minutes to next timestamp) for the Euler step. Absent in older
+    # parquets -> None, and the model falls back to its config dt.
+    train_dt = (train_df[dt_column].values.astype(np.float32)
+                if dt_column in train_df.columns else None)
+    test_dt = (test_df[dt_column].values.astype(np.float32)
+               if dt_column in test_df.columns else None)
+
     # Build datasets
     train_dataset = ClimateDataset(
         X_train,
@@ -321,6 +345,7 @@ def build_dataloaders(
         train_df[boundary_nee_column].values.astype(np.float32),
         train_df[dtemp_column].values.astype(np.float32),
         train_df[nee_target_column].values.astype(np.float32),
+        dt=train_dt,
         site_ids=train_df["site"].tolist() if "site" in train_df.columns else None,
     )
     test_dataset = ClimateDataset(
@@ -331,6 +356,7 @@ def build_dataloaders(
         test_df[boundary_nee_column].values.astype(np.float32),
         test_df[dtemp_column].values.astype(np.float32),
         test_df[nee_target_column].values.astype(np.float32),
+        dt=test_dt,
         site_ids=test_df["site"].tolist() if "site" in test_df.columns else None,
     )
 

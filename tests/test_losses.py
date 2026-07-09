@@ -71,29 +71,6 @@ def test_compute_losses_skips_zero_weights():
     assert set(losses.keys()) == {"mse_nee", "mse_E0"}, f"unexpected losses: {set(losses.keys())}"
 
 
-def test_compute_losses_noise_mean_zero():
-    """noise_mean_zero penalises mean(noise_mu^2); skipped when noise_mu is None."""
-    batch = {"NEE": torch.randn(8), "bNEE": torch.randn(8), "k": torch.randn(8, 2),
-             "dT": torch.randn(8), "dNEE": torch.randn(8), "T": torch.randn(8)}
-    noise_mu = torch.full((8, 1), 0.5, requires_grad=True)
-    outputs = {
-        "nee_pred": None, "bnee": None, "k": None, "temp_derivative": None,
-        "drift": None, "noise": torch.randn(8, 1), "noise_mu": noise_mu,
-        "noise_logvar": torch.zeros(8, 1), "latent": None,
-        "latent_mu": None, "latent_logvar": None, "nee_raw": None,
-    }
-    losses = compute_losses(batch, outputs, {"noise_mean_zero": 2.0})
-    assert set(losses.keys()) == {"noise_mean_zero"}
-    # weight * mean(0.5^2) = 2.0 * 0.25 = 0.5
-    assert torch.isclose(losses["noise_mean_zero"], torch.tensor(0.5))
-    losses["noise_mean_zero"].backward()
-    assert noise_mu.grad is not None  # gradient flows back to the noise mean head
-
-    # Skipped when the noise head is disabled (noise_mu None)
-    outputs["noise_mu"] = None
-    assert compute_losses(batch, outputs, {"noise_mean_zero": 2.0}) == {}
-
-
 def test_compute_losses_kl_for_vae():
     """kl_latent term computes only when latent_mu/logvar are present."""
     batch = {"NEE": torch.randn(8), "bNEE": torch.randn(8), "k": torch.randn(8, 2),

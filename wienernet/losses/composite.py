@@ -17,15 +17,6 @@ The terms supported (any subset can be enabled):
         mmd_nee, mmd_bnee    — match the distribution of NEE / boundary NEE
         mmd_noise            — match the noise term to a Gaussian prior
 
-    Decomposition constraint:
-        noise_mean_zero      — penalise the noise head's conditional mean
-                               (mean(noise_mu^2)) so E[eps|z]=0 and the drift /
-                               deterministic part carries the conditional mean
-                               instead of leaking into the noise. See the
-                               "drift displacement" analysis: with a non-zero
-                               noise mean the noise does double duty as both
-                               zero-mean stochasticity and a bias correction.
-
     KL (for VAE-style latent):
         kl_latent            — standard VAE KL term: -0.5 * mean(1 + logvar - mu^2 - exp(logvar))
 """
@@ -125,14 +116,6 @@ def compute_losses(
             raise ValueError("noise_prior_fn is required for mmd_noise > 0")
         prior = noise_prior_fn(outputs["noise"])
         losses["mmd_noise"] = _w("mmd_noise") * mmd_loss_fn(outputs["noise"], prior)
-
-    # ------------------------------------------------------------------
-    # Decomposition constraint — pin the noise head's conditional mean to 0
-    # ------------------------------------------------------------------
-    if _w("noise_mean_zero") > 0 and outputs.get("noise_mu") is not None:
-        # mean(noise_mu^2) drives mu(z) -> 0 pointwise, so E[eps|z]=0 and the
-        # deterministic part (nee_raw + drift) must carry the conditional mean.
-        losses["noise_mean_zero"] = _w("noise_mean_zero") * outputs["noise_mu"].pow(2).mean()
 
     # ------------------------------------------------------------------
     # KL — VAE-style latent regularizer

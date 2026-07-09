@@ -1,36 +1,39 @@
 # @package _global_
 #
-# Ablation for the "drift displacement" issue: the noise head was learning a
-# non-zero conditional mean (set, by default, to the empirical mean of
-# NEE - NEE_phy = -0.238), so the deterministic part (nee_raw + drift) sat
-# systematically above ground truth and the noise pulled it back down.
+# Fix for the "drift displacement" issue: the noise head was learning a non-zero
+# conditional mean (set, by default, to the empirical mean of NEE - NEE_phy =
+# -0.238), so the deterministic part (nee_raw + drift) sat systematically above
+# ground truth and the noise pulled it back down.
 #
 # Two changes vs the published piae_sde_sampling / loss=full setup:
-#   1. noise_prior.mean = 0.0   -> the mmd_noise term targets a zero-mean prior
-#      instead of the empirical -0.238, so it no longer imposes the bias.
-#   2. loss.weights.noise_mean_zero -> soft penalty mean(noise_mu^2) pinning the
-#      conditional mean E[eps|z] -> 0, so nee_raw carries the conditional mean.
+#   1. model.heads.noise_zero_mean = true -> drop the fc_mu head so the noise is
+#      eps * sigma(z), i.e. E[eps|z]=0 by construction. No penalty / extra loss
+#      term (lower overhead than a soft mean(noise_mu^2) penalty); the
+#      deterministic part is structurally forced to carry the conditional mean.
+#   2. noise_prior.mean = 0.0 -> the mmd_noise term targets a zero-mean prior
+#      rather than the empirical -0.238, consistent with the zero-mean noise.
 #
 # Validation target: nee_pred RMSE/R2 should stay ~unchanged (this is a
 # re-decomposition, not a re-fit); the daily green "without noise" line should
-# align with GT and the predicted-noise histogram should centre on 0.
+# align with GT and the predicted-noise mean should be ~0 at every site/seed
+# (the structural constraint removes the seed instability seen with the
+# empirical-prior-only run).
 #
-# Invoke (single seed):
-#   python scripts/train.py experiment=zeromean_noise
-# Or the full sweep for comparison against experiment=seed_sweep:
-#   python scripts/train.py -m experiment=zeromean_noise
+# Invoke:
+#   python scripts/train.py experiment=zeromean_noise           # single seed
+#   python scripts/train.py -m experiment=zeromean_noise        # 7-seed sweep
 #
-# noise_mean_zero weight is a starting point — sweep it (e.g. 0.5,1,5,10) if the
-# predicted-noise mean doesn't reach ~0 or if nee_pred metrics degrade.
+# Combine with the empirical-shape prior (step 2) by also setting
+# training.noise_prior.kind=empirical on the command line.
 defaults:
   - override /model: piae_sde_sampling
   - override /loss: full
 
 run_name: zeromean_noise_seed${seed}
 
-loss:
-  weights:
-    noise_mean_zero: 1.0
+model:
+  heads:
+    noise_zero_mean: true
 
 training:
   noise_prior:

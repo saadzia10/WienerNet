@@ -1,0 +1,30 @@
+# @package _global_
+#
+# Time-scale sweep: train + evaluate one model per SDE step size. Each run
+# rescales the targets to a k*30-min step within each night (NEE_{t+k}, dNEE,
+# dTa, dt) via wienernet.data.rescale, so every method can be reported as a
+# function of its training+evaluation dt (manuscript: performance vs timescale).
+#
+#   k = 1  -> 30 min      k = 4 -> 2 h      k = 16 -> 8 h
+#   k = 2  -> 1 h         k = 8 -> 4 h
+#
+# Swap the model/loss overrides (or add them to the -m command line) to run the
+# same scale sweep for other methods (ae, pivae_sde_sampling, ...).
+#
+# Invoke:
+#   python scripts/train.py -m experiment=dt_scale_sweep
+#   # per-method, per-scale, per-seed:
+#   python scripts/train.py -m experiment=dt_scale_sweep model=piae_sde_sampling,ae seed=0,1,2
+defaults:
+  - override /model: piae_sde_sampling
+  - override /loss: full
+
+run_name: ${model.variant}_k${data.time_step_k}_seed${seed}
+
+hydra:
+  sweep:
+    subdir: ${model.variant}_k${data.time_step_k}_seed${seed}
+  sweeper:
+    params:
+      data.time_step_k: 1,2,4,8,16
+      seed: 0,1,2,3,4,5,6

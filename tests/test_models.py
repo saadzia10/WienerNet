@@ -14,8 +14,56 @@ import pytest
 import torch
 import torch.nn.functional as F
 
-from wienernet.models import build_model
+from wienernet.models import (
+    HeadsConfig,
+    WienerNetConfig,
+    WienerNetModel,
+    build_model,
+)
 from wienernet.utils import load_model_weights, save_checkpoint
+
+
+def test_per_row_dt_overrides_config_dt(synthetic_batch):
+    """Passing per-row dt scales the drift step; None falls back to config dt."""
+    model = build_model("piae_sde_sampling", input_dim=20, device="cpu")
+    model.cfg.dt = 30.0
+    args = (synthetic_batch["X"], synthetic_batch["bNEE"], synthetic_batch["k"], synthetic_batch["T"])
+    n = synthetic_batch["X"].shape[0]
+
+    # drift contribution = nee_pred - bnee = drift*dt (deterministic; the reparam
+    # noise in bnee cancels, and drift is a deterministic function of the input).
+    def drift_contrib(out):
+        return out["nee_pred"] - out["bnee"]
+
+    contrib_cfg = drift_contrib(model(*args))                # dt=None -> cfg.dt=30
+    contrib_30 = drift_contrib(model(*args, torch.full((n,), 30.0)))
+    torch.testing.assert_close(contrib_cfg, contrib_30)      # per-row 30 == config 30
+
+    contrib_15 = drift_contrib(model(*args, torch.full((n,), 15.0)))
+    torch.testing.assert_close(contrib_15, contrib_30 * 0.5)  # halving dt halves the step
+
+
+def test_noise_zero_mean_drops_fc_mu_and_zeros_noise_mean(synthetic_batch):
+    """noise_zero_mean removes fc_mu; noise_mu is exactly 0 so noise = eps*sigma."""
+    cfg = WienerNetConfig(
+        input_dim=20, device="cpu",
+        heads=HeadsConfig(temp_derivative=True, k=True, noise=True, noise_zero_mean=True),
+    )
+    model = WienerNetModel(cfg)
+    assert model.fc_mu is None            # head not built -> no extra params/overhead
+    assert model.fc_logvar is not None    # variance head still present
+
+    out = model(synthetic_batch["X"], synthetic_batch["bNEE"],
+                synthetic_batch["k"], synthetic_batch["T"])
+    assert out["noise"] is not None
+    assert torch.count_nonzero(out["noise_mu"]) == 0   # mean fixed to zero
+
+    # Contrast: the default head does learn a (generally non-zero) mean
+    default = WienerNetModel(WienerNetConfig(
+        input_dim=20, device="cpu",
+        heads=HeadsConfig(temp_derivative=True, k=True, noise=True, noise_zero_mean=False),
+    ))
+    assert default.fc_mu is not None
 
 
 def test_output_shape(variant, synthetic_batch):

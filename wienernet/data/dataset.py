@@ -16,6 +16,7 @@ class ClimateDataset(Dataset):
         bNEE,
         dT,
         NEE,
+        dt=None,
         site_ids: Optional[Sequence[Any]] = None,
     ):
         """
@@ -27,6 +28,9 @@ class ClimateDataset(Dataset):
             bNEE (numpy array): Ground truth for NEE at current t (boundary condition), shape (n_samples, 1)
             dT (numpy array): Ground truth for temperature derivative, shape (n_samples, 1)
             NEE (numpy array): Ground truth for NEE at t + 1, shape (n_samples, 1)
+            dt (optional numpy array): minutes to the next timestamp per sample, used
+                by the Euler-Maruyama step (nee_pred = bNEE + drift * dt). When None,
+                the model falls back to its config `dt`.
             site_ids (optional Sequence[Any]): Site identifier for each sample (e.g., site code or int label).
                 When provided, you can build a balanced batch sampler to draw roughly equal samples per site per batch.
         """
@@ -37,6 +41,7 @@ class ClimateDataset(Dataset):
         self.bNEE = torch.tensor(bNEE, dtype=torch.float32)
         self.dT = torch.tensor(dT, dtype=torch.float32)
         self.NEE = torch.tensor(NEE, dtype=torch.float32)
+        self.dt = torch.tensor(dt, dtype=torch.float32) if dt is not None else None
 
         if site_ids is not None:
             if len(site_ids) != len(self.X):
@@ -60,6 +65,8 @@ class ClimateDataset(Dataset):
             'dT': self.dT[idx],
             'NEE': self.NEE[idx]
         }
+        if self.dt is not None:
+            sample['dt'] = self.dt[idx]
         # Optionally include site identifier (as-is, not a tensor), if available
         if self.site_ids is not None:
             # Note: this is intentionally not a torch.Tensor to preserve original type (e.g., string site code)

@@ -34,6 +34,12 @@ temperature_column: Ta
 dtemp_column: dTa
 dnee_column: dNEE
 
+# Time-scale of the increment the model is trained/evaluated on, in 30-min
+# steps. null or 1 -> native 30-min. k>1 rescales targets (NEE_{t+k}, dNEE, dTa,
+# dt) to a k*30-min step within each night (see wienernet.data.rescale). Set per
+# run via the dt_scale_sweep experiment to train one model per scale.
+time_step_k: null
+
 # Split strategy
 split_strategy: site_fraction    # 'site_fraction' or 'year'
 test_frac: 0.3

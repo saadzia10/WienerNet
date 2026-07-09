@@ -49,6 +49,11 @@ class HeadsConfig:
     k: bool = True
     noise: bool = True
     noise_dims: tuple[int, ...] = (4,)
+    # Structurally fix the noise mean to zero: drop the fc_mu head so the noise
+    # is eps * sigma(z), i.e. E[eps|z]=0 by construction. Forces the deterministic
+    # part (nee_raw + drift) to carry the conditional mean rather than leaking it
+    # into the noise. See the drift-displacement analysis.
+    noise_zero_mean: bool = False
     # k_decoder uses LeakyReLU in the PIAE variants and ReLU/Tanh in AE/VAE.
     # Setting None means "use the same activation as the rest of the model".
     k_activation: str | None = "leaky_relu"
@@ -70,6 +75,13 @@ class WienerNetConfig:
     # Physics constants — match data_pipeline.partitioning
     tref: float = DEFAULT_TREF
     t0: float = DEFAULT_T0
+    # Euler step size (minutes). The physics drift is a per-MINUTE rate
+    # (f = dReco/dT · dT/dt, and dT/dt = dTa is stored divided by the minutes to
+    # the next timestep). The Euler-Maruyama step is nee_pred = bNEE + f·dt, so
+    # dt un-normalises the rate back to the per-step increment. The data cadence
+    # is 30 min; all kept rows have divisor 30 (whole-hour gaps drop out as
+    # div-by-zero), so 30 exactly recovers NEE_next - NEE_t.
+    dt: float = 30.0
     device: str = "cpu"
 
 
@@ -108,7 +120,7 @@ class WienerNetModel(nn.Module):
         temp_derivative  : dT/dt (None if temp head off)
         drift            : f = dReco/dT * dT/dt (None if k or temp head off)
         bnee             : nee_raw + noise (boundary NEE)
-        nee_pred         : bnee + (drift if predict_drift else 0)
+        nee_pred         : bnee + (drift * dt if predict_drift else 0)
     """
 
     def __init__(self, cfg: WienerNetConfig) -> None:
@@ -183,7 +195,11 @@ class WienerNetModel(nn.Module):
         # reparameterise). The submodule names fc_mu / fc_logvar match the
         # original implementation so existing checkpoints load.
         if cfg.heads.noise:
-            self.fc_mu = build_mlp_with_head(
+            # Build fc_mu first (when present) so weight-init RNG order — and thus
+            # default-variant initialisation — is bit-identical to before.
+            # noise_zero_mean drops fc_mu entirely -> noise = eps * sigma(z),
+            # a zero-conditional-mean stochastic term.
+            self.fc_mu = None if cfg.heads.noise_zero_mean else build_mlp_with_head(
                 cfg.latent_dim, cfg.heads.noise_dims, 1, activation=activation_cls,
             )
             self.fc_logvar = build_mlp_with_head(
@@ -223,6 +239,7 @@ class WienerNetModel(nn.Module):
         b: torch.Tensor,
         k: torch.Tensor,
         T: torch.Tensor,
+        dt: torch.Tensor | None = None,
     ) -> dict[str, torch.Tensor | None]:
         """Full forward pass returning a dict of all (possibly-None) outputs.
 
@@ -231,6 +248,8 @@ class WienerNetModel(nn.Module):
             b: [B] or [B, 1] boundary NEE (NEE at the current step).
             k: [B, 2] (E0, rb) estimates from REddyProc fit.
             T: [B] or [B, 1] temperature at the current step.
+            dt: [B] or [B, 1] per-row Euler step size (minutes to the next
+                timestamp). When None, falls back to the scalar config `dt`.
         """
         input_tensor = torch.cat(
             (x, b.view(x.shape[0], 1), k), dim=1
@@ -238,10 +257,11 @@ class WienerNetModel(nn.Module):
 
         z, latent_mu, latent_logvar = self.encode(input_tensor)
 
-        # Noise head
-        if self.fc_mu is not None and self.fc_logvar is not None:
-            noise_mu = self.fc_mu(z)
+        # Noise head. With noise_zero_mean, fc_mu is absent and the mean is a
+        # constant zero tensor, so noise = eps * sigma(z) (E[eps|z]=0).
+        if self.fc_logvar is not None:
             noise_logvar = self.fc_logvar(z)
+            noise_mu = self.fc_mu(z) if self.fc_mu is not None else torch.zeros_like(noise_logvar)
             noise = self._reparameterize(noise_mu, noise_logvar)
         else:
             noise_mu = noise_logvar = noise = None
@@ -265,7 +285,10 @@ class WienerNetModel(nn.Module):
             drift = None
 
         if self.cfg.predict_drift and drift is not None:
-            nee_pred = bnee + drift
+            # Euler-Maruyama step: bNEE + f·dt (drift is a per-minute rate).
+            # Prefer the per-row dt from the data; fall back to the scalar config dt.
+            step_dt = dt.view(-1, 1).to(drift.device) if dt is not None else self.cfg.dt
+            nee_pred = bnee + drift * step_dt
         else:
             nee_pred = bnee
 

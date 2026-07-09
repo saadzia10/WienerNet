@@ -92,6 +92,7 @@ def main(cfg: DictConfig) -> float:
         test_years=tuple(cfg.data.test_years),
         shuffle_split=bool(cfg.data.shuffle_split),
         split_random_state=int(cfg.data.split_random_state),
+        time_step_k=cfg.data.get("time_step_k"),
         batch_size=int(cfg.data.batch_size),
         save_scaler_path=scaler_path,
     )

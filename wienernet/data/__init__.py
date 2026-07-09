@@ -23,6 +23,7 @@ from .loader import (
     prepare_combined_frame,
     save_scaler,
 )
+from .rescale import rescale_to_timestep
 from .splits import split_data_by_site_fraction, split_data_by_year
 
 __all__ = [
@@ -46,6 +47,7 @@ __all__ = [
     # loader
     "DataBundle",
     "build_dataloaders",
+    "rescale_to_timestep",
     "load_site_parquets",
     "prepare_combined_frame",
     "fit_scale_features",

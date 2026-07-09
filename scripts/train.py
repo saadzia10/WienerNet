@@ -95,6 +95,7 @@ def _build_model_from_cfg(cfg: DictConfig, input_dim: int, device: str) -> Wiene
         temp_derivative=bool(cfg.model.heads.temp_derivative),
         k=bool(cfg.model.heads.k),
         noise=bool(cfg.model.heads.noise),
+        noise_zero_mean=bool(cfg.model.heads.get("noise_zero_mean", False)),
         noise_dims=tuple(cfg.model.heads.get("noise_dims", [4])),
         k_activation=cfg.model.heads.get("k_activation"),
         k_activation_slope=float(cfg.model.heads.get("k_activation_slope", 0.01)),
@@ -110,6 +111,7 @@ def _build_model_from_cfg(cfg: DictConfig, input_dim: int, device: str) -> Wiene
         heads=heads,
         tref=float(cfg.model.tref),
         t0=float(cfg.model.t0),
+        dt=float(cfg.model.get("dt", 30.0)),
         device=device,
     )
     return WienerNetModel(model_cfg).initialize()
@@ -154,6 +156,7 @@ def main(cfg: DictConfig) -> float:
         test_years=tuple(cfg.data.test_years),
         shuffle_split=bool(cfg.data.shuffle_split),
         split_random_state=int(cfg.data.split_random_state),
+        time_step_k=cfg.data.get("time_step_k"),
         batch_size=int(cfg.data.batch_size),
         num_workers=int(cfg.data.num_workers),
         pin_memory=bool(cfg.data.pin_memory),
