@@ -371,20 +371,29 @@ def add_time_derivatives(
     columns: tuple[str, ...] = ("NEE", "Ta", "Rg"),
     datetime_column: str = "DateTime",
 ) -> pd.DataFrame:
-    """Add `dCOL` and `COL_next` columns matching the notebook convention.
+    """Add `dCOL`, `COL_next`, and a `dt` column.
 
-    The notebooks compute these as forward differences divided by the number
-    of minutes to the next timestamp, then drop the first row (which has no
-    forward difference).
+    Forward differences are the change to the next timestamp divided by the
+    minutes to that timestamp (a per-minute rate), and `dt` is that same minute
+    count — so the Euler-Maruyama step can recover the per-step increment as
+    `dCOL * dt`.
+
+    Note on the minute count: the original notebook used
+    `TimeDiff.dt.components.minutes`, which returns only the *minutes component*
+    of the gap — it is 0 for whole-hour gaps (silent div-by-zero -> the row is
+    later dropped) and wrong for multi-hour gaps (e.g. 90 min -> 30). We use
+    `total_seconds() / 60`, the true minute count, which fixes both and lets the
+    stored `dt` be used per-row downstream.
     """
     out = df.copy()
     out["TimeDiff"] = out[datetime_column].shift(-1) - out[datetime_column]
-    minutes = out["TimeDiff"].dt.components.minutes
+    dt_minutes = out["TimeDiff"].dt.total_seconds() / 60.0
+    out["dt"] = dt_minutes
     for col in columns:
         if col not in out.columns:
             log.warning("add_time_derivatives: column %r missing; skipping", col)
             continue
-        out[f"d{col}"] = (out[col].shift(-1) - out[col]) / minutes
+        out[f"d{col}"] = (out[col].shift(-1) - out[col]) / dt_minutes
     if "NEE" in out.columns:
         out["NEE_next"] = out["NEE"].shift(-1)
     return out.iloc[1:].reset_index(drop=True)
