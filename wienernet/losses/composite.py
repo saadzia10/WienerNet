@@ -17,6 +17,15 @@ The terms supported (any subset can be enabled):
         mmd_nee, mmd_bnee    — match the distribution of NEE / boundary NEE
         mmd_noise            — match the noise term to a Gaussian prior
 
+    Decomposition constraint:
+        noise_mean_zero      — penalise the noise head's conditional mean
+                               (mean(noise_mu^2)) so E[eps|z]=0 and the drift /
+                               deterministic part carries the conditional mean
+                               instead of leaking into the noise. See the
+                               "drift displacement" analysis: with a non-zero
+                               noise mean the noise does double duty as both
+                               zero-mean stochasticity and a bias correction.
+
     KL (for VAE-style latent):
         kl_latent            — standard VAE KL term: -0.5 * mean(1 + logvar - mu^2 - exp(logvar))
 """
@@ -25,6 +34,7 @@ from __future__ import annotations
 
 from typing import Callable, Mapping
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 
@@ -117,6 +127,14 @@ def compute_losses(
         losses["mmd_noise"] = _w("mmd_noise") * mmd_loss_fn(outputs["noise"], prior)
 
     # ------------------------------------------------------------------
+    # Decomposition constraint — pin the noise head's conditional mean to 0
+    # ------------------------------------------------------------------
+    if _w("noise_mean_zero") > 0 and outputs.get("noise_mu") is not None:
+        # mean(noise_mu^2) drives mu(z) -> 0 pointwise, so E[eps|z]=0 and the
+        # deterministic part (nee_raw + drift) must carry the conditional mean.
+        losses["noise_mean_zero"] = _w("noise_mean_zero") * outputs["noise_mu"].pow(2).mean()
+
+    # ------------------------------------------------------------------
     # KL — VAE-style latent regularizer
     # ------------------------------------------------------------------
     if _w("kl_latent") > 0 and outputs.get("latent_mu") is not None:
@@ -136,4 +154,32 @@ def make_gaussian_noise_prior(
     """
     def prior(noise: torch.Tensor) -> torch.Tensor:
         return torch.randn_like(noise) * std + mean
+    return prior
+
+
+def make_empirical_noise_prior(
+    residuals, *, center: bool = True
+) -> Callable[[torch.Tensor], torch.Tensor]:
+    """Build a noise_prior_fn that resamples from an empirical residual pool.
+
+    Unlike `make_gaussian_noise_prior`, this matches the noise to the *shape* of
+    the real residual distribution (NEE - NEE_phy), which is skewed / heavy-
+    tailed — a Gaussian target throws that away. With ``center=True`` the pool is
+    de-meaned so the target is zero-mean and the deterministic head carries the
+    location; matching an un-centred pool would re-impose the physics-misfit bias.
+
+    Each call draws ``noise.shape`` samples with replacement (so MMD's equal-
+    batch-size requirement holds) via the global RNG — seed with `set_seed_globally`
+    for reproducibility.
+    """
+    pool = torch.as_tensor(np.asarray(residuals, dtype=np.float32).ravel())
+    if pool.numel() == 0:
+        raise ValueError("empirical noise prior needs a non-empty residual pool")
+    if center:
+        pool = pool - pool.mean()
+
+    def prior(noise: torch.Tensor) -> torch.Tensor:
+        idx = torch.randint(0, pool.numel(), noise.shape, device="cpu")
+        return pool[idx].to(device=noise.device, dtype=noise.dtype)
+
     return prior

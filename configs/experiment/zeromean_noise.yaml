@@ -1,0 +1,48 @@
+# @package _global_
+#
+# Ablation for the "drift displacement" issue: the noise head was learning a
+# non-zero conditional mean (set, by default, to the empirical mean of
+# NEE - NEE_phy = -0.238), so the deterministic part (nee_raw + drift) sat
+# systematically above ground truth and the noise pulled it back down.
+#
+# Two changes vs the published piae_sde_sampling / loss=full setup:
+#   1. noise_prior.mean = 0.0   -> the mmd_noise term targets a zero-mean prior
+#      instead of the empirical -0.238, so it no longer imposes the bias.
+#   2. loss.weights.noise_mean_zero -> soft penalty mean(noise_mu^2) pinning the
+#      conditional mean E[eps|z] -> 0, so nee_raw carries the conditional mean.
+#
+# Validation target: nee_pred RMSE/R2 should stay ~unchanged (this is a
+# re-decomposition, not a re-fit); the daily green "without noise" line should
+# align with GT and the predicted-noise histogram should centre on 0.
+#
+# Invoke (single seed):
+#   python scripts/train.py experiment=zeromean_noise
+# Or the full sweep for comparison against experiment=seed_sweep:
+#   python scripts/train.py -m experiment=zeromean_noise
+#
+# noise_mean_zero weight is a starting point — sweep it (e.g. 0.5,1,5,10) if the
+# predicted-noise mean doesn't reach ~0 or if nee_pred metrics degrade.
+defaults:
+  - override /model: piae_sde_sampling
+  - override /loss: full
+
+run_name: zeromean_noise_seed${seed}
+
+loss:
+  weights:
+    noise_mean_zero: 1.0
+
+training:
+  noise_prior:
+    mean: 0.0
+
+hydra:
+  # The multirun subdir is hardcoded to ${model.variant}_seed${seed} in
+  # config.yaml, so without this override these runs would be indistinguishable
+  # from the baseline seed_sweep. Tag them so evaluate.py / aggregate scripts can
+  # pick them out and they don't collide conceptually with the published runs.
+  sweep:
+    subdir: zeromean_noise_seed${seed}
+  sweeper:
+    params:
+      seed: 0,1,2,3,4,5,6

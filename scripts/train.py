@@ -35,7 +35,7 @@ except ImportError:
     mlflow = None
 
 from wienernet.data import build_dataloaders
-from wienernet.losses import MMDLoss, make_gaussian_noise_prior
+from wienernet.losses import MMDLoss, make_empirical_noise_prior, make_gaussian_noise_prior
 from wienernet.models import HeadsConfig, WienerNetConfig, WienerNetModel
 from wienernet.training import Trainer, build_optimizer, build_scheduler
 from wienernet.utils import (
@@ -198,16 +198,28 @@ def main(cfg: DictConfig) -> float:
         else None
     )
 
-    noise_prior_mean = cfg.training.noise_prior.get("mean")
-    noise_prior_std = cfg.training.noise_prior.get("std")
-    noise_prior_fn = (
-        make_gaussian_noise_prior(
+    # Noise prior for the mmd_noise term. 'gaussian' (default) matches noise to a
+    # parametric N(mean, std); 'empirical' matches to the (optionally centred)
+    # train residual pool, preserving the true skewed noise shape (step 2).
+    noise_prior_kind = str(cfg.training.noise_prior.get("kind", "gaussian"))
+    if loss_weights.get("mmd_noise", 0) <= 0:
+        noise_prior_fn = None
+    elif noise_prior_kind == "empirical":
+        noise_prior_fn = make_empirical_noise_prior(
+            bundle.noise_residuals,
+            center=bool(cfg.training.noise_prior.get("center", True)),
+        )
+        log.info("noise prior: empirical (train residual pool, n=%d, center=%s)",
+                 len(bundle.noise_residuals), cfg.training.noise_prior.get("center", True))
+    elif noise_prior_kind == "gaussian":
+        noise_prior_mean = cfg.training.noise_prior.get("mean")
+        noise_prior_std = cfg.training.noise_prior.get("std")
+        noise_prior_fn = make_gaussian_noise_prior(
             mean=bundle.noise_mu if noise_prior_mean is None else float(noise_prior_mean),
             std=bundle.noise_std if noise_prior_std is None else float(noise_prior_std),
         )
-        if loss_weights.get("mmd_noise", 0) > 0
-        else None
-    )
+    else:
+        raise ValueError(f"Unknown noise_prior.kind: {noise_prior_kind!r} (expected 'gaussian' or 'empirical')")
 
     # ---------- TensorBoard ----------
     tb_writer = SummaryWriter(run_dir / "tensorboard")

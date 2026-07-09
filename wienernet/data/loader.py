@@ -59,6 +59,10 @@ class DataBundle:
     input_dim: int
     train_df: pd.DataFrame
     test_df: pd.DataFrame
+    # Train-only residual pool (NEE - NEE_phy) for the empirical MMD-noise prior.
+    # Train-only (unlike the leaky combined noise_mu/noise_std) so no test signal
+    # enters the training objective.
+    noise_residuals: np.ndarray | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -299,6 +303,15 @@ def build_dataloaders(
     noise_mu, noise_std = compute_noise_statistics(combined["NEE"].values, nee_phys)
     log.info("noise stats: mu=%.4f  std=%.4f", noise_mu, noise_std)
 
+    # Train-only residual pool for the empirical MMD-noise prior (step 2). Kept
+    # separate from the (combined) noise_mu/noise_std above so the empirical
+    # target carries no test signal.
+    nee_phys_train = physics_nee_numpy(train_df[e0_column].values,
+                                       train_df[rb_column].values,
+                                       train_df[temperature_column].values)
+    noise_residuals = (train_df["NEE"].values - nee_phys_train).astype(np.float32)
+    noise_residuals = noise_residuals[np.isfinite(noise_residuals)]
+
     # Build datasets
     train_dataset = ClimateDataset(
         X_train,
@@ -353,4 +366,5 @@ def build_dataloaders(
         input_dim=X_train.shape[1] + 1 + 2,  # X + bNEE + k
         train_df=train_df if save_dataframes else None,
         test_df=test_df if save_dataframes else None,
+        noise_residuals=noise_residuals,
     )

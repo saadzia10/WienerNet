@@ -11,6 +11,9 @@ weights:
   mmd_bnee: 0.0
   mmd_noise: 1.0
 
+  # Decomposition constraint (see configs/loss/full.yaml). Off by default.
+  noise_mean_zero: 0.0
+
   kl_latent: 0.0
 
 mmd:

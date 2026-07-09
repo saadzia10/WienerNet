@@ -14,6 +14,11 @@ weights:
   mmd_bnee: 1.0
   mmd_noise: 1.0
 
+  # Decomposition constraint: penalise the noise head's conditional mean so the
+  # deterministic part (nee_raw + drift) isn't bias-corrected by a non-zero noise
+  # mean. Off by default (preserves published behaviour); enable via experiment.
+  noise_mean_zero: 0.0
+
   # KL (off by default; only meaningful for VAE-style latent)
   kl_latent: 0.0
 

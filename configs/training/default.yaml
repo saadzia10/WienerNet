@@ -16,7 +16,10 @@ scheduler:
   mode: min
 
 # Noise prior for the MMD-on-noise term (mmd_noise loss).
-# Set from data.noise_mu / data.noise_std at runtime; you can override here.
+# kind: 'gaussian' matches noise to N(mean, std); 'empirical' matches to the
+# train residual pool (NEE - NEE_phy), preserving the true skewed shape.
 noise_prior:
-  mean: null                     # null = use computed noise_mu
-  std: null                      # null = use computed noise_std
+  kind: gaussian                 # 'gaussian' | 'empirical'
+  mean: null                     # (gaussian) null = use computed noise_mu
+  std: null                      # (gaussian) null = use computed noise_std
+  center: true                   # (empirical) de-mean the pool -> zero-mean target
