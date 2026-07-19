@@ -6,10 +6,14 @@ site_paths:
   redmere_2:  data_manipulation/other_sites/redmere_2/final_night_data.parquet
   great_fen:  data_manipulation/other_sites/great_fen/final_night_data.parquet
   rosedene:   data_manipulation/final_night_data.parquet
-  # Add wicken_fen and woodwalton via the CLI if you want to include them
-  # (the original paper excluded these without documentation):
+  # woodwalton is included by default (all training features present, ~17k
+  # usable night rows; adding it is neutral-to-positive on the original sites).
+  woodwalton: data_manipulation/other_sites/woodwalton/final_night_data.parquet
+  # wicken_fen is NOT included: its raw data has no soil-temperature sensor, so
+  # Tsoil1 (a required driver) is entirely absent. In a combined run every
+  # wicken_fen row would be silently dropped (NaN Tsoil1); run alone it errors.
+  # To use it you must first decide how to handle the missing Tsoil1 driver.
   # wicken_fen: data_manipulation/other_sites/wicken_fen/final_night_data.parquet
-  # woodwalton: data_manipulation/other_sites/woodwalton/final_night_data.parquet
 
 # Which subset to actually use. Leave include_sites empty to use all in site_paths.
 include_sites: []
@@ -41,11 +45,18 @@ dnee_column: dNEE
 time_step_k: null
 
 # Split strategy
-split_strategy: site_fraction    # 'site_fraction' or 'year'
+split_strategy: site_fraction    # 'site_fraction' | 'year' | 'site_holdout'
 test_frac: 0.3
 test_years: []                   # used if split_strategy=year, e.g. [2018, 2019]
+holdout_site: null               # used if split_strategy=site_holdout: test = this site, train = rest
 shuffle_split: false
 split_random_state: 42
+
+# Training-data subsampling for data-efficiency / learning-curve sweeps. null or
+# 1.0 = use all training rows. Nested (fixed seed): a smaller fraction is a subset
+# of a larger one. The test set is never subsampled.
+train_subsample_frac: null
+train_subsample_seed: 0
 
 # DataLoader knobs
 batch_size: 512

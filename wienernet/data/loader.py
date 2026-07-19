@@ -30,7 +30,7 @@ from .features import (
     physics_nee_numpy,
     set_season_tag,
 )
-from .splits import split_data_by_site_fraction, split_data_by_year
+from .splits import split_data_by_site_fraction, split_data_by_site_holdout, split_data_by_year
 
 log = logging.getLogger("wienernet.data.loader")
 
@@ -60,6 +60,23 @@ class DataBundle:
     input_dim: int
     train_df: pd.DataFrame
     test_df: pd.DataFrame
+    # Width of the scaled feature matrix alone (X.shape[1], i.e. drivers + time +
+    # site). The full encoder input adds the flagged GT parts (bNEE/k/dTa); use
+    # `wienernet.models.encoder_input_dim(feature_dim, inputs_cfg)` to size the
+    # encoder when the input flags differ from the legacy all-on default.
+    feature_dim: int = 0
+    # Train-only per-feature stats for standardising the optional GT encoder
+    # inputs (k=(E0, rb) and dTa) when `inputs.scale_extra_inputs` is on. Fed to
+    # the model via `WienerNetModel.set_input_norm_stats(...)`.
+    k_mean: np.ndarray | None = None
+    k_std: np.ndarray | None = None
+    dtemp_mean: float | None = None
+    dtemp_std: float | None = None
+    # Train-only per-target stds for the loss's optional MSE normalisation
+    # (compute_losses target_scales). Keyed by loss-term name. Anchors like E0
+    # (~112±42) otherwise dwarf mse_nee / mse_drift; scaling each MSE by its
+    # target variance puts every term on a comparable O(1) footing.
+    target_scales: dict[str, float] | None = None
     # Train-only residual pool (NEE - NEE_phy) for the empirical MMD-noise prior.
     # Train-only (unlike the leaky combined noise_mu/noise_std) so no test signal
     # enters the training objective.
@@ -94,6 +111,24 @@ def load_site_parquets(
         out[site_name] = df
         log.info("loaded site %r: %d rows from %s", site_name, len(df), path)
     return out
+
+
+def ordered_site_names(
+    site_paths: dict[str, object] | Iterable[str],
+    include_sites: Iterable[str] | None = None,
+    exclude_sites: Iterable[str] = (),
+) -> tuple[str, ...]:
+    """Deterministic, sorted list of the sites a run trains on, from the data
+    config alone (site_paths keys minus exclude, intersected with include).
+
+    Used to fix a checkpoint-stable per-site parameter layout (e.g. the per-site
+    analytical baseline's diffusion vector) identically at train and eval time,
+    without threading site info through the run artifacts.
+    """
+    excl = set(exclude_sites or ())
+    incl = set(include_sites) if include_sites else None
+    names = [s for s in site_paths if s not in excl and (incl is None or s in incl)]
+    return tuple(sorted(names))
 
 
 # ---------------------------------------------------------------------------
@@ -241,6 +276,9 @@ def build_dataloaders(
     split_strategy: str = "site_fraction",
     test_frac: float = 0.3,
     test_years: Iterable[int] = (),
+    holdout_site: str | None = None,
+    train_subsample_frac: float | None = None,
+    train_subsample_seed: int = 0,
     shuffle_split: bool = False,
     split_random_state: int = 42,
     batch_size: int = 512,
@@ -293,6 +331,24 @@ def build_dataloaders(
         log.info("rescaled to k=%d (%d min step): %d -> %d rows",
                  int(time_step_k), int(time_step_k) * 30, before, len(combined))
 
+    # Physics diurnal temperature tendency: the smooth, predictable part of dT/dt is
+    # the diurnal cooling, estimated as the per-site (month, hour-of-day) climatology of
+    # the observed tendency. The turbulent remainder (dTa - dTa_diurnal) is left to the
+    # noise. Derived from measured temperature only (always available, incl. gaps), so
+    # it is a physics/climatology feature, not target leakage. Used by the state-space
+    # increment-SDE variant as the drift's dT/dt.
+    if "DateTime" in combined.columns:
+        _dtp = pd.to_datetime(combined["DateTime"])
+        combined["_m"] = _dtp.dt.month
+        combined["_h"] = _dtp.dt.hour + _dtp.dt.minute / 60.0
+        combined["dTa_diurnal"] = (
+            combined.groupby(["site", "_m", "_h"])[dtemp_column].transform("mean")
+        ).astype(np.float32)
+        combined = combined.drop(columns=["_m", "_h"])
+    else:
+        log.warning("no DateTime column; dTa_diurnal falls back to observed dTa")
+        combined["dTa_diurnal"] = combined[dtemp_column].astype(np.float32)
+
     # Train/test split
     if split_strategy == "site_fraction":
         train_df, test_df = split_data_by_site_fraction(
@@ -300,9 +356,25 @@ def build_dataloaders(
         )
     elif split_strategy == "year":
         train_df, test_df = split_data_by_year(combined, test_years=test_years)
+    elif split_strategy == "site_holdout":
+        if not holdout_site:
+            raise ValueError("split_strategy='site_holdout' requires holdout_site")
+        train_df, test_df = split_data_by_site_holdout(combined, holdout_site=holdout_site)
     else:
         raise ValueError(f"Unknown split_strategy: {split_strategy!r}")
     log.info("split sizes: train=%d  test=%d", len(train_df), len(test_df))
+
+    # Optional training-data subsampling for a data-efficiency / learning-curve
+    # sweep. NESTED (fixed seed -> a smaller fraction is a subset of a larger one)
+    # so the curve is monotone in data seen. The test set is never subsampled.
+    if train_subsample_frac is not None and 0 < float(train_subsample_frac) < 1.0:
+        n = len(train_df)
+        order = np.random.default_rng(train_subsample_seed).permutation(n)
+        m = max(batch_size + 1, int(round(n * float(train_subsample_frac))))
+        m = min(m, n)
+        train_df = train_df.iloc[np.sort(order[:m])].reset_index(drop=True)
+        log.info("subsampled train to frac=%.4f: %d -> %d rows (seed=%d, nested)",
+                 float(train_subsample_frac), n, m, train_subsample_seed)
 
     # Feature scaling
     X_train, X_test, scaler, feature_cols = fit_scale_features(
@@ -329,12 +401,41 @@ def build_dataloaders(
     noise_residuals = (train_df["NEE"].values - nee_phys_train).astype(np.float32)
     noise_residuals = noise_residuals[np.isfinite(noise_residuals)]
 
+    # Train-only stats for standardising the optional GT encoder inputs (k, dTa)
+    # when a run turns on inputs.scale_extra_inputs. Kept train-only (like the
+    # empirical noise prior) so no test signal enters the input normalisation.
+    # std floored to avoid divide-by-zero on a degenerate column.
+    k_train = train_df[[e0_column, rb_column]].values.astype(np.float32)
+    k_mean = k_train.mean(axis=0)
+    k_std = np.where(k_train.std(axis=0) > 1e-8, k_train.std(axis=0), 1.0).astype(np.float32)
+    dtemp_train = train_df[dtemp_column].values.astype(np.float32)
+    dtemp_mean = float(dtemp_train.mean())
+    dtemp_std = float(dtemp_train.std()) if dtemp_train.std() > 1e-8 else 1.0
+
+    # Per-target stds for the loss MSE normalisation. Only the k anchors (E0~112,
+    # rb~4) live on the REddyProc-parameter scale, orders of magnitude off the
+    # flux scale (~1-3) — their raw MSE (~1e4 for E0) dominates the loss and
+    # starves everything else. The other MSE targets (NEE~O(1), and the naturally
+    # SMALL dTa/dNEE) are on the working scale already; normalising them to unit
+    # variance would wrongly force the weak, near-unpredictable 30-min physics
+    # terms up to parity with mse_nee and hurt the NEE fit (verified: seed-0
+    # full-normalisation gave raw mse_nee ~2.97 vs ~2.66 for E0/rb-only). So we
+    # scale ONLY E0/rb; mse_nee/temp/drift keep their natural scale + config weight.
+    target_scales = {
+        "mse_E0": float(k_std[0]),
+        "mse_rb": float(k_std[1]),
+    }
+
     # Per-row dt (minutes to next timestamp) for the Euler step. Absent in older
     # parquets -> None, and the model falls back to its config dt.
     train_dt = (train_df[dt_column].values.astype(np.float32)
                 if dt_column in train_df.columns else None)
     test_dt = (test_df[dt_column].values.astype(np.float32)
                if dt_column in test_df.columns else None)
+    train_dtd = (train_df["dTa_diurnal"].values.astype(np.float32)
+                 if "dTa_diurnal" in train_df.columns else None)
+    test_dtd = (test_df["dTa_diurnal"].values.astype(np.float32)
+                if "dTa_diurnal" in test_df.columns else None)
 
     # Build datasets
     train_dataset = ClimateDataset(
@@ -346,6 +447,7 @@ def build_dataloaders(
         train_df[dtemp_column].values.astype(np.float32),
         train_df[nee_target_column].values.astype(np.float32),
         dt=train_dt,
+        dT_diurnal=train_dtd,
         site_ids=train_df["site"].tolist() if "site" in train_df.columns else None,
     )
     test_dataset = ClimateDataset(
@@ -357,6 +459,7 @@ def build_dataloaders(
         test_df[dtemp_column].values.astype(np.float32),
         test_df[nee_target_column].values.astype(np.float32),
         dt=test_dt,
+        dT_diurnal=test_dtd,
         site_ids=test_df["site"].tolist() if "site" in test_df.columns else None,
     )
 
@@ -389,7 +492,13 @@ def build_dataloaders(
         noise_mu=noise_mu,
         noise_std=noise_std,
         feature_columns=feature_cols,
-        input_dim=X_train.shape[1] + 1 + 2,  # X + bNEE + k
+        input_dim=X_train.shape[1] + 1 + 2,  # legacy default: X + bNEE + k
+        feature_dim=X_train.shape[1],
+        k_mean=k_mean,
+        k_std=k_std,
+        dtemp_mean=dtemp_mean,
+        dtemp_std=dtemp_std,
+        target_scales=target_scales,
         train_df=train_df if save_dataframes else None,
         test_df=test_df if save_dataframes else None,
         noise_residuals=noise_residuals,

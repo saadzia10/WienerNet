@@ -20,11 +20,12 @@ from .loader import (
     fit_scale_features,
     load_scaler,
     load_site_parquets,
+    ordered_site_names,
     prepare_combined_frame,
     save_scaler,
 )
 from .rescale import rescale_to_timestep
-from .splits import split_data_by_site_fraction, split_data_by_year
+from .splits import split_data_by_site_fraction, split_data_by_site_holdout, split_data_by_year
 
 __all__ = [
     # dataset
@@ -43,12 +44,14 @@ __all__ = [
     "SITE_VECTOR_COLUMNS",
     # splits
     "split_data_by_site_fraction",
+    "split_data_by_site_holdout",
     "split_data_by_year",
     # loader
     "DataBundle",
     "build_dataloaders",
     "rescale_to_timestep",
     "load_site_parquets",
+    "ordered_site_names",
     "prepare_combined_frame",
     "fit_scale_features",
     "save_scaler",

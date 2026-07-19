@@ -17,6 +17,7 @@ class ClimateDataset(Dataset):
         dT,
         NEE,
         dt=None,
+        dT_diurnal=None,
         site_ids: Optional[Sequence[Any]] = None,
     ):
         """
@@ -42,6 +43,10 @@ class ClimateDataset(Dataset):
         self.dT = torch.tensor(dT, dtype=torch.float32)
         self.NEE = torch.tensor(NEE, dtype=torch.float32)
         self.dt = torch.tensor(dt, dtype=torch.float32) if dt is not None else None
+        # Physics diurnal temperature tendency (smooth month/hour climatology of dTa),
+        # used by the increment-SDE state-space variant as the drift's dT/dt. Optional
+        # (older setups / non-diurnal variants leave it None).
+        self.dT_diurnal = torch.tensor(dT_diurnal, dtype=torch.float32) if dT_diurnal is not None else None
 
         if site_ids is not None:
             if len(site_ids) != len(self.X):
@@ -67,6 +72,8 @@ class ClimateDataset(Dataset):
         }
         if self.dt is not None:
             sample['dt'] = self.dt[idx]
+        if self.dT_diurnal is not None:
+            sample['dT_diurnal'] = self.dT_diurnal[idx]
         # Optionally include site identifier (as-is, not a tensor), if available
         if self.site_ids is not None:
             # Note: this is intentionally not a torch.Tensor to preserve original type (e.g., string site code)

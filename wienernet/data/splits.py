@@ -77,6 +77,31 @@ def split_data_by_site_fraction(
     return train_df, test_df
 
 
+def split_data_by_site_holdout(
+    df: pd.DataFrame,
+    *,
+    holdout_site: str,
+    site_column: str = "site",
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Leave-one-site-out: test = all rows of `holdout_site`, train = every other
+    site. Tests extrapolation to a completely unseen site (the physics-vs-black-box
+    generalisation experiment). No rows of the held-out site enter training.
+    """
+    if site_column not in df.columns:
+        raise ValueError(f"site_holdout split needs a {site_column!r} column")
+    is_test = df[site_column].astype(str) == str(holdout_site)
+    train_df = df.loc[~is_test].reset_index(drop=True)
+    test_df = df.loc[is_test].reset_index(drop=True)
+    if len(test_df) == 0:
+        raise ValueError(
+            f"holdout_site {holdout_site!r} has no rows; available: "
+            f"{sorted(df[site_column].astype(str).unique())}"
+        )
+    if len(train_df) == 0:
+        raise ValueError(f"holdout_site {holdout_site!r} left no training rows")
+    return train_df, test_df
+
+
 def split_data_by_year(
     df: pd.DataFrame,
     *,
