@@ -264,5 +264,47 @@ presets in `wienernet/models/registry.py` and matching
   (`dNEE = ΔNEE/dt`).
 - Tests: run with `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest`.
 - GPU currently unusable in this env (CUDA err 999 + empty `CUDA_VISIBLE_DEVICES`);
-  train on CPU (`device=cpu`, ~6 min for 120 ep / seed).
+  train on CPU (`device=cpu`, ~6 min for 120 ep / seed). *(Resolved 2026-07-10 — GPU
+  works; ~1.3 ep/s on a 3060, ~90 s for 120 ep.)*
+
+---
+
+## 9. Seed-0 results + the anchor-scale fix (2026-07-10)
+
+Ran the physics_k_source × include_k matrix (seed 0, 120 ep) after the model was
+built. **The original config did not converge on NEE, and the cause was a loss-scale
+bug, not the model.**
+
+**Diagnosis.** `mse_E0` (target E0 ~112±42) is ~99% of the loss. Consequences:
+(1) total val loss sits at ~2600 forever and *looks* stuck; (2) the shared encoder
+burns capacity chasing E0 — a slow per-site constant, essentially unlearnable from
+instantaneous drivers — which also pushes `dTemp` into the unfaithful free-knob regime;
+(3) the default (`pred_exo`) was **worse than predicting ΔNEE=0**: `incr_r2 = -0.11`,
+`nee_r2 = 0.618 < 0.656` (the no-change baseline), `corr(pred_dtemp,dTa) = -0.10`.
+Symmetrically, `mse_temp_derivative`/`mse_drift` (targets ~0±0.01) are so small they
+contribute no gradient.
+
+**Matrix (best val mse_nee; ΔNEE=0 baseline ≈ 3.39 raw / nee_r2 0.656):**
+
+| config | mse_nee | val_loss | note |
+|---|---|---|---|
+| pred_exo (old default) | 2.98 | 2503 | worst; incr_r2 < 0 |
+| gt_exo | 2.70 | 2620 | GT drift helps, loss still dominated |
+| pred_feedk / gt_feedk | 2.73 / 2.69 | ~5.8 | feeding GT k kills the anchor via copy (leaky) |
+| **pred/gt_exo + normalize** | **2.66 / 2.65** | ~4.7 | **fix: normalise E0/rb anchors** |
+
+**Fix (implemented).** `loss.normalize_anchors: true` divides *only* the E0/rb MSE
+terms by their train variance (`compute_losses(target_scales=...)` fed from
+`bundle.target_scales`). Leaving `mse_nee` and the naturally-small physics terms at
+raw scale is deliberate: full-variance normalisation forces the weak 30-min physics
+up to parity with NEE and *hurts* it (raw mse_nee 2.97 vs 2.66). After the fix: loss
+is meaningful (~4.7), NEE beats the trivial baseline (`incr_r2 +0.009`, `nee_r2 0.660`),
+noise is clean (`corr(noise,Ta) ≈ 0`, `mean ≈ 0`), residual is small (~0.003), and the
+drift is load-bearing (`corr(drift,ΔNEE) +0.10`). `physics_k_source: ground_truth` is
+the new residual-experiment default (marginally best + cleanest `r(z)` diagnostic).
+
+**Caveat.** The one-step 30-min increment R² ceiling is ~0.01 — the diffusion-dominated
+regime of §4, a fundamental timescale limit, not a config issue. The real physics signal
+lives at longer horizons: run `experiment=piae_increment_residual` through the
+`dt_scale_sweep` (k=1..16) for the manuscript "performance vs dt" axis.
 </content>
