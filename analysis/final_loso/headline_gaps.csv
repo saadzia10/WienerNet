@@ -1,0 +1,11 @@
+head,site,n,mean_gap,sd,verdict
+WienerNet (Laplace),Woodwalton,3,-0.1758,0.2592,mixed/tie
+WienerNet (Laplace),Redmere 1,3,-0.5037,0.3774,physics wins (all seeds)
+WienerNet (Laplace),Redmere 2,3,-0.0145,0.0083,physics wins (all seeds)
+WienerNet (Laplace),Great Fen,3,0.0064,0.0141,mixed/tie
+WienerNet (Laplace),Rosedene,3,0.0158,0.0187,mixed/tie
+WienerNet (Mixture),Woodwalton,3,-0.1612,0.2842,mixed/tie
+WienerNet (Mixture),Redmere 1,3,-0.5239,0.5403,physics wins (all seeds)
+WienerNet (Mixture),Redmere 2,3,-0.0051,0.0064,mixed/tie
+WienerNet (Mixture),Great Fen,3,-0.0026,0.0239,mixed/tie
+WienerNet (Mixture),Rosedene,3,0.0124,0.0138,mixed/tie
