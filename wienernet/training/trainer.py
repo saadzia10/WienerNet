@@ -68,11 +68,15 @@ class Trainer:
         clip_grad_norm: float | None = None,
         nan_policy: str = "raise",
         log_every_n_steps: int = 50,
+        target_scales: Mapping[str, float] | None = None,
+        likelihood: Mapping[str, object] | None = None,
     ) -> None:
         self.model = model
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.loss_weights = dict(loss_weights or {})
+        self.target_scales = dict(target_scales) if target_scales else None
+        self.likelihood = dict(likelihood) if likelihood else None
         self.device = torch.device(device)
         self.writer = writer
         self.clip_grad_norm = clip_grad_norm
@@ -172,7 +176,10 @@ class Trainer:
 
         for batch in loader:
             batch = self._to_device(batch)
-            outputs = self.model(batch["X"], batch["bNEE"], batch["k"], batch["T"], batch.get("dt"))
+            outputs = self.model(
+                batch["X"], batch["bNEE"], batch["k"], batch["T"],
+                batch.get("dt"), batch.get("dT"), site=batch.get("site_id"), dT_diurnal=batch.get("dT_diurnal"),
+            )
 
             # Ground truth: rename a couple keys to match original convention
             gt_buckets["nee"].append(batch["NEE"].detach().cpu().numpy())
@@ -192,6 +199,23 @@ class Trainer:
                 pred_buckets["dtemp"].append(outputs["temp_derivative"].detach().cpu().numpy())
             if outputs.get("drift") is not None:
                 pred_buckets["f"].append(outputs["drift"].detach().cpu().numpy())
+            # Deterministic mean prediction + target-scale std (for likelihood
+            # models). nee_mean is the point estimate to score (the sampled
+            # nee_pred adds honest noise that unfairly hurts point metrics);
+            # nee_std enables calibration/coverage. GT for nee_mean is the same
+            # NEE_{t+1} target so evaluate can compute point metrics on it.
+            if outputs.get("nee_mean") is not None:
+                gt_buckets["nee_mean"].append(batch["NEE"].detach().cpu().numpy())
+                pred_buckets["nee_mean"].append(outputs["nee_mean"].detach().cpu().numpy())
+            if outputs.get("nee_log_std") is not None:
+                pred_buckets["nee_std"].append(
+                    torch.exp(outputs["nee_log_std"]).detach().cpu().numpy())
+            # Increment-SDE extras (present only for IncrementSDEModel): the
+            # residual drift-misfit correction and the integrated increment.
+            if outputs.get("residual") is not None:
+                pred_buckets["residual"].append(outputs["residual"].detach().cpu().numpy())
+            if outputs.get("dnee_pred") is not None:
+                pred_buckets["dnee"].append(outputs["dnee_pred"].detach().cpu().numpy())
             if outputs.get("noise") is not None:
                 pred_buckets["noise"].append(outputs["noise"].detach().cpu().numpy())
                 pred_buckets["noise_mus"].append(outputs["noise_mu"].detach().cpu().numpy())
@@ -210,6 +234,36 @@ class Trainer:
             return out
 
         return _stack(gt_buckets), _stack(pred_buckets)
+
+    @torch.no_grad()
+    def predict_ensemble(
+        self, loader: DataLoader, *, n_samples: int = 100, seed: int = 0,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Draw a one-step forecast ensemble by repeated stochastic forward passes.
+
+        The model samples fresh latent + noise on every call (the reparameterised
+        latent and the diffusion `randn` are not gated by eval mode), so `n_samples`
+        passes give an honest predictive ensemble over next-step NEE. This is the
+        family-agnostic predictive distribution used to score the sampling / MMD
+        variants, whose parametric `nee_std` under-represents their true spread.
+
+        Returns (obs, samples) with obs shape (N,) and samples shape (N, n_samples),
+        aligned to the loader's (shuffle=False) row order.
+        """
+        self.model.eval()
+        torch.manual_seed(seed)
+        obs_parts: list[np.ndarray] = []
+        sample_parts: list[np.ndarray] = []
+        for batch in loader:
+            batch = self._to_device(batch)
+            obs_parts.append(batch["NEE"].detach().cpu().numpy().ravel())
+            draws = []
+            for _ in range(n_samples):
+                out = self.model(batch["X"], batch["bNEE"], batch["k"], batch["T"],
+                                 batch.get("dt"), batch.get("dT"), site=batch.get("site_id"), dT_diurnal=batch.get("dT_diurnal"))
+                draws.append(out["nee_pred"].detach().cpu().numpy().reshape(-1))
+            sample_parts.append(np.stack(draws, axis=1))          # (B, n_samples)
+        return np.concatenate(obs_parts), np.concatenate(sample_parts, axis=0)
 
     # ------------------------------------------------------------------
     # Internals
@@ -242,13 +296,18 @@ class Trainer:
                 if train:
                     self.optimizer.zero_grad(set_to_none=True)
 
-                outputs = self.model(batch["X"], batch["bNEE"], batch["k"], batch["T"], batch.get("dt"))
+                outputs = self.model(
+                    batch["X"], batch["bNEE"], batch["k"], batch["T"],
+                    batch.get("dt"), batch.get("dT"), site=batch.get("site_id"), dT_diurnal=batch.get("dT_diurnal"),
+                )
                 losses = compute_losses(
                     batch,
                     outputs,
                     self.loss_weights,
                     mmd_loss_fn=self.mmd_loss_fn,
                     noise_prior_fn=self.noise_prior_fn,
+                    target_scales=self.target_scales,
+                    likelihood=self.likelihood,
                 )
 
                 total = sum(losses.values()) if losses else torch.zeros((), device=self.device)

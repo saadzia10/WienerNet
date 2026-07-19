@@ -34,9 +34,26 @@ try:
 except ImportError:
     mlflow = None
 
-from wienernet.data import build_dataloaders
+from wienernet.data import build_dataloaders, ordered_site_names
+from wienernet.data.loader import DataBundle
 from wienernet.losses import MMDLoss, make_empirical_noise_prior, make_gaussian_noise_prior
-from wienernet.models import HeadsConfig, WienerNetConfig, WienerNetModel
+from wienernet.models import (
+    AnalyticalSDEConfig,
+    AnalyticalSDEModel,
+    HeadsConfig,
+    HeteroscedasticMLPConfig,
+    HeteroscedasticMLPModel,
+    IncrementSDEConfig,
+    IncrementSDEModel,
+    InputsConfig,
+    NeuralSDEConfig,
+    NeuralSDEModel,
+    WienerNetConfig,
+    WienerNetModel,
+    encoder_input_dim,
+    is_baseline_variant,
+    is_increment_variant,
+)
 from wienernet.training import Trainer, build_optimizer, build_scheduler
 from wienernet.utils import (
     get_logger,
@@ -88,8 +105,40 @@ def _setup_mlflow(cfg: DictConfig, log) -> bool:
     return True
 
 
-def _build_model_from_cfg(cfg: DictConfig, input_dim: int, device: str) -> WienerNetModel:
-    """Map the Hydra model config block to a WienerNetConfig."""
+def _inputs_from_cfg(cfg: DictConfig, *, exogenous_default: bool) -> InputsConfig:
+    """Build InputsConfig from the (optional) cfg.model.inputs block.
+
+    `exogenous_default` picks the fallback when the block is absent: level models
+    default to the legacy encoder (bNEE + GT k in); the increment model defaults
+    to fully exogenous (nothing extra in the encoder).
+    """
+    default_on = not exogenous_default
+    inputs_block = cfg.model.get("inputs", {}) or {}
+    return InputsConfig(
+        include_bnee=bool(inputs_block.get("include_bnee", default_on)),
+        include_k=bool(inputs_block.get("include_k", default_on)),
+        include_dtemp=bool(inputs_block.get("include_dtemp", False)),
+        scale_extra_inputs=bool(inputs_block.get("scale_extra_inputs", False)),
+    )
+
+
+def _maybe_set_norm_stats(model, inputs: InputsConfig, bundle: DataBundle) -> None:
+    if inputs.scale_extra_inputs:
+        model.set_input_norm_stats(
+            k_mean=bundle.k_mean, k_std=bundle.k_std,
+            dtemp_mean=bundle.dtemp_mean, dtemp_std=bundle.dtemp_std,
+        )
+
+
+def _build_model_from_cfg(cfg: DictConfig, bundle: DataBundle, device: str) -> WienerNetModel:
+    """Map the Hydra model config block to a WienerNetConfig.
+
+    The encoder input width is derived from the scaled feature width
+    (`bundle.feature_dim`) plus the `inputs` flags, so toggling E0/rb/dTa in or
+    out of the encoder resizes the first layer automatically. When
+    `inputs.scale_extra_inputs` is on, the model's normalisation buffers are
+    populated from the train-only stats in the bundle.
+    """
     heads = HeadsConfig(
         nee=True,
         temp_derivative=bool(cfg.model.heads.temp_derivative),
@@ -100,8 +149,9 @@ def _build_model_from_cfg(cfg: DictConfig, input_dim: int, device: str) -> Wiene
         k_activation=cfg.model.heads.get("k_activation"),
         k_activation_slope=float(cfg.model.heads.get("k_activation_slope", 0.01)),
     )
+    inputs = _inputs_from_cfg(cfg, exogenous_default=False)
     model_cfg = WienerNetConfig(
-        input_dim=input_dim,
+        input_dim=encoder_input_dim(bundle.feature_dim, inputs),
         latent_dim=int(cfg.model.latent_dim),
         encoder_dims=tuple(cfg.model.encoder_dims),
         decoder_dims=tuple(cfg.model.decoder_dims),
@@ -109,12 +159,143 @@ def _build_model_from_cfg(cfg: DictConfig, input_dim: int, device: str) -> Wiene
         latent_reparameterize=bool(cfg.model.latent_reparameterize),
         predict_drift=bool(cfg.model.predict_drift),
         heads=heads,
+        inputs=inputs,
+        physics_k_source=str(cfg.model.get("physics_k_source", "predicted")),
+        noise_student_dof=_needs_student_dof(cfg),
         tref=float(cfg.model.tref),
         t0=float(cfg.model.t0),
         dt=float(cfg.model.get("dt", 30.0)),
         device=device,
     )
-    return WienerNetModel(model_cfg).initialize()
+    model = WienerNetModel(model_cfg).initialize()
+    _maybe_set_norm_stats(model, inputs, bundle)
+    return model
+
+
+def _needs_student_dof(cfg: DictConfig) -> bool:
+    """True if the model needs a learnable log_nu (loss uses the student_t NLL)."""
+    lik = cfg.loss.get("likelihood") or {}
+    return bool(cfg.model.get("noise_student_dof", False)) or str(lik.get("variant", "")) == "student_t"
+
+
+def _needs_asymmetry(cfg: DictConfig) -> bool:
+    """True if the model needs a learnable log_kappa (loss uses the ALD NLL)."""
+    lik = cfg.loss.get("likelihood") or {}
+    return bool(cfg.model.get("noise_asymmetry", False)) or str(lik.get("variant", "")) == "ald"
+
+
+def _build_increment_from_cfg(cfg: DictConfig, bundle: DataBundle, device: str) -> IncrementSDEModel:
+    """Map the Hydra model config block to an IncrementSDEConfig (increment variants)."""
+    inputs = _inputs_from_cfg(cfg, exogenous_default=True)
+    model_cfg = IncrementSDEConfig(
+        input_dim=encoder_input_dim(bundle.feature_dim, inputs),
+        latent_dim=int(cfg.model.latent_dim),
+        encoder_dims=tuple(cfg.model.encoder_dims),
+        decoder_dims=tuple(cfg.model.decoder_dims),
+        activation=str(cfg.model.activation),
+        latent_reparameterize=bool(cfg.model.get("latent_reparameterize", False)),
+        predict_k=bool(cfg.model.get("predict_k", True)),
+        predict_temp_derivative=bool(cfg.model.get("predict_temp_derivative", True)),
+        residual=bool(cfg.model.get("residual", False)),
+        noise=bool(cfg.model.get("noise", True)),
+        noise_zero_mean=bool(cfg.model.get("noise_zero_mean", True)),
+        noise_dims=tuple(cfg.model.get("noise_dims", [4])),
+        residual_dims=tuple(cfg.model.get("residual_dims", [16, 16])),
+        k_activation=cfg.model.get("k_activation", "leaky_relu"),
+        k_activation_slope=float(cfg.model.get("k_activation_slope", 0.01)),
+        inputs=inputs,
+        physics_k_source=str(cfg.model.get("physics_k_source", "predicted")),
+        noise_student_dof=_needs_student_dof(cfg),
+        noise_asymmetry=_needs_asymmetry(cfg),
+        noise_mixture_components=int(cfg.model.get("noise_mixture_components", 1)),
+        noise_physics_scale=bool(cfg.model.get("noise_physics_scale", False)),
+        noise_physics_scale_b=float(cfg.model.get("noise_physics_scale_b", 0.25)),
+        exact_reco_drift=bool(cfg.model.get("exact_reco_drift", False)),
+        drift_tendency=str(cfg.model.get("drift_tendency", "learned_observed")),
+        noise_state_space=bool(cfg.model.get("noise_state_space", False)),
+        drift_clamp=cfg.model.get("drift_clamp", 1.0),
+        tref=float(cfg.model.get("tref", 10.0)),
+        t0=float(cfg.model.get("t0", 46.02)),
+        dt=float(cfg.model.get("dt", 30.0)),
+        device=device,
+    )
+    model = IncrementSDEModel(model_cfg).initialize()
+    _maybe_set_norm_stats(model, inputs, bundle)
+    return model
+
+
+def _ordered_site_names(cfg: DictConfig) -> tuple[str, ...]:
+    """Checkpoint-stable per-site layout from the data config (train + eval agree)."""
+    site_paths = OmegaConf.to_container(cfg.data.site_paths, resolve=True)
+    return ordered_site_names(
+        site_paths,
+        include_sites=cfg.data.get("include_sites") or None,
+        exclude_sites=cfg.data.get("exclude_sites") or (),
+    )
+
+
+def _build_baseline_from_cfg(cfg: DictConfig, bundle: DataBundle, device: str):
+    """Map the Hydra model block to a process-comparison baseline (ablation ladder).
+
+    Baselines share the increment output contract but are separate model classes.
+    The analytical baseline has no encoder; its single constant sigma is set later
+    by `calibrate()` on the train loader (see main()).
+    """
+    variant = str(cfg.model.variant)
+    if variant == "analytical_sde":
+        per_site = bool(cfg.model.get("per_site", False))
+        site_names = _ordered_site_names(cfg) if per_site else ()
+        model_cfg = AnalyticalSDEConfig(
+            per_site=per_site,
+            site_names=site_names,
+            noise_student_dof=_needs_student_dof(cfg),
+            tref=float(cfg.model.get("tref", 10.0)),
+            t0=float(cfg.model.get("t0", 46.02)),
+            dt=float(cfg.model.get("dt", 30.0)),
+            init_sigma=float(cfg.model.get("init_sigma", 1.0)),
+            device=device,
+        )
+        return AnalyticalSDEModel(model_cfg).initialize()
+    if variant in ("hetero_mlp", "hetero_mdn"):
+        # No-physics baseline: encoder over the driver matrix only (X = drivers +
+        # time + site), no GT physics inputs — input_dim is exactly feature_dim.
+        default_k = 3 if variant == "hetero_mdn" else 1
+        model_cfg = HeteroscedasticMLPConfig(
+            input_dim=bundle.feature_dim,
+            latent_dim=int(cfg.model.get("latent_dim", 32)),
+            encoder_dims=tuple(cfg.model.get("encoder_dims", [16, 16])),
+            decoder_dims=tuple(cfg.model.get("decoder_dims", [16, 16])),
+            activation=str(cfg.model.get("activation", "relu")),
+            mixture_components=int(cfg.model.get("mixture_components", default_k)),
+            noise_student_dof=_needs_student_dof(cfg),
+            device=device,
+        )
+        return HeteroscedasticMLPModel(model_cfg).initialize()
+    if variant == "neural_sde":
+        # Data-driven neural SDE: encoder over the driver matrix only (no physics).
+        model_cfg = NeuralSDEConfig(
+            input_dim=bundle.feature_dim,
+            latent_dim=int(cfg.model.get("latent_dim", 32)),
+            encoder_dims=tuple(cfg.model.get("encoder_dims", [16, 16])),
+            decoder_dims=tuple(cfg.model.get("decoder_dims", [16, 16])),
+            activation=str(cfg.model.get("activation", "relu")),
+            noise_student_dof=_needs_student_dof(cfg),
+            dt=float(cfg.model.get("dt", 30.0)),
+            device=device,
+        )
+        return NeuralSDEModel(model_cfg).initialize()
+    raise ValueError(f"No builder wired for baseline variant {variant!r}")
+
+
+def _build_any_model(cfg: DictConfig, bundle: DataBundle, device: str):
+    """Dispatch to the level (WienerNet), increment (IncrementSDE), or process
+    baseline builder based on the variant name."""
+    variant = str(cfg.model.variant)
+    if is_baseline_variant(variant):
+        return _build_baseline_from_cfg(cfg, bundle, device)
+    if is_increment_variant(variant):
+        return _build_increment_from_cfg(cfg, bundle, device)
+    return _build_model_from_cfg(cfg, bundle, device)
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
@@ -154,6 +335,9 @@ def main(cfg: DictConfig) -> float:
         split_strategy=str(cfg.data.split_strategy),
         test_frac=float(cfg.data.test_frac),
         test_years=tuple(cfg.data.test_years),
+        holdout_site=cfg.data.get("holdout_site"),
+        train_subsample_frac=cfg.data.get("train_subsample_frac"),
+        train_subsample_seed=int(cfg.data.get("train_subsample_seed", 0)),
         shuffle_split=bool(cfg.data.shuffle_split),
         split_random_state=int(cfg.data.split_random_state),
         time_step_k=cfg.data.get("time_step_k"),
@@ -167,9 +351,19 @@ def main(cfg: DictConfig) -> float:
              len(bundle.train_loader), len(bundle.test_loader), bundle.input_dim)
 
     # ---------- Model ----------
-    model = _build_model_from_cfg(cfg, input_dim=bundle.input_dim, device=device)
-    log.info("model built: %d params",
-             sum(p.numel() for p in model.parameters()))
+    model = _build_any_model(cfg, bundle, device=device)
+    log.info("model built: %s  %d params  encoder_input_dim=%d",
+             type(model).__name__, sum(p.numel() for p in model.parameters()), model.cfg.input_dim)
+
+    # Analytical-SDE baseline: set its single constant diffusion level from the
+    # spread of the training increment misfit (the textbook estimate). Training
+    # under the Gaussian NLL then leaves it at this MLE, so it's stable even at
+    # 0 epochs.
+    if hasattr(model, "calibrate"):
+        model.calibrate(bundle.train_loader)
+        import torch as _torch  # local: avoid a top-level torch dependency in this fn
+        log.info("calibrated constant diffusion: sigma=%.4f",
+                 float(_torch.exp(model.log_sigma).detach().cpu()))
 
     # ---------- Optimiser, scheduler ----------
     optimizer = build_optimizer(
@@ -227,6 +421,19 @@ def main(cfg: DictConfig) -> float:
     # ---------- TensorBoard ----------
     tb_writer = SummaryWriter(run_dir / "tensorboard")
 
+    # Optional per-target MSE normalisation (loss.normalize_anchors). Puts every
+    # MSE term on an O(1) footing so the raw-scale E0 anchor stops dominating the
+    # loss and starving mse_nee / the small physics terms of gradient.
+    target_scales = bundle.target_scales if bool(cfg.loss.get("normalize_anchors", False)) else None
+    if target_scales is not None:
+        log.info("anchor normalisation ON; target scales: %s",
+                 {k: round(v, 4) for k, v in target_scales.items()})
+
+    # Likelihood (NLL) config — when set, replaces mse_nee/mse_drift/mmd_noise.
+    likelihood_cfg = OmegaConf.to_container(cfg.loss.likelihood, resolve=True) if cfg.loss.get("likelihood") else None
+    if likelihood_cfg is not None and float(likelihood_cfg.get("weight", 0)) > 0:
+        log.info("likelihood loss ON: %s", likelihood_cfg)
+
     # ---------- Trainer ----------
     trainer = Trainer(
         model=model,
@@ -240,6 +447,8 @@ def main(cfg: DictConfig) -> float:
         clip_grad_norm=cfg.training.get("clip_grad_norm"),
         nan_policy=str(cfg.training.nan_policy),
         log_every_n_steps=int(cfg.training.log_every_n_steps),
+        target_scales=target_scales,
+        likelihood=likelihood_cfg,
     )
 
     log.info("starting training: %d epochs", cfg.training.num_epochs)
