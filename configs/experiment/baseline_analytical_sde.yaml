@@ -1,0 +1,27 @@
+# @package _global_
+#
+# Baseline 1 — Analytical SDE (constant-diffusion, textbook version).
+#
+# Physics drift (GT Lloyd-Taylor) + a single global constant diffusion level
+# calibrated from the training increment-misfit spread. The cheapest baseline and
+# the reference point for the core claim: what the learned misfit + state-
+# dependent noise buy over textbook physics with constant noise.
+#
+# Seed-invariant: the drift is deterministic GT physics and sigma is calibrated
+# from the (fixed) training data, so every seed gives the identical predictive
+# distribution — one run suffices (no seed sweep). The Gaussian NLL leaves the
+# calibrated sigma at its MLE, so the number of epochs does not matter either.
+#
+# Invoke:
+#   python scripts/train.py experiment=baseline_analytical_sde
+#   python scripts/evaluate.py --run outputs/*_analytical_sde_seed0 --plots
+defaults:
+  - override /model: analytical_sde
+  - override /loss: nll_gaussian
+
+run_name: analytical_sde_seed${seed}
+
+# Only sigma is fit and it is already at its MLE after calibration — a short run
+# is plenty. Override on the CLI if you want the full schedule.
+training:
+  num_epochs: 20

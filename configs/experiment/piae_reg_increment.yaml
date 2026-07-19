@@ -1,0 +1,24 @@
+# @package _global_
+#
+# Increment-SDE VERSION C — deterministic drift only (PIAE-reg analog).
+#
+#   dNEE = f_phys*dt ,  NEE_{t+1} = NEE_t + dNEE
+# No residual, no diffusion term: the model predicts the physics drift and
+# integrates it onto the observed NEE. The reg-spirit deterministic baseline for
+# the increment family. mmd_noise is inert (no noise head).
+#
+# Invoke:
+#   python scripts/train.py experiment=piae_reg_increment                 # single seed
+#   python scripts/train.py -m experiment=piae_reg_increment              # 7-seed sweep
+defaults:
+  - override /model: piae_reg_increment
+  - override /loss: increment
+
+run_name: piae_reg_increment_seed${seed}
+
+hydra:
+  sweep:
+    subdir: piae_reg_increment_seed${seed}
+  sweeper:
+    params:
+      seed: 0,1,2,3,4,5,6

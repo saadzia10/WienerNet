@@ -1,0 +1,25 @@
+# @package _global_
+#
+# Baseline 2 (mean-variance) — no-physics heteroscedastic network.
+#
+# The simplest form of the no-physics baseline: one Gaussian per row (predicted
+# mean + predicted spread of the next-step increment), no SDE structure. The key
+# ablation for "does physics + SDE structure add anything over a flexible
+# heteroscedastic conditional density?". Neural, so report multiple seeds
+# (mean ± standard error). Swap loss=nll_student_t for heavy-tailed components.
+#
+# Invoke:
+#   python scripts/train.py experiment=baseline_hetero_mlp                 # single seed
+#   python scripts/train.py -m experiment=baseline_hetero_mlp             # 7-seed sweep
+defaults:
+  - override /model: hetero_mlp
+  - override /loss: nll_gaussian
+
+run_name: hetero_mlp_seed${seed}
+
+hydra:
+  sweep:
+    subdir: hetero_mlp_seed${seed}
+  sweeper:
+    params:
+      seed: 0,1,2,3,4,5,6

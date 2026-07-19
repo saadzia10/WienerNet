@@ -1,0 +1,85 @@
+# @package _global_
+#
+# Increment-SDE VERSION A — the residual reformulation of WienerNet.
+#
+# Reformulates the model as a proper Euler–Maruyama increment predictor:
+#   dNEE = (f_phys + r(z))*dt + sigma(z)*sqrt(dt)*Z ,  NEE_{t+1} = NEE_t + dNEE
+# bNEE is the integration boundary only (not reconstructed, not encoded).
+# r(z) is a state-dependent drift-misfit correction; the noise is structurally
+# zero-mean, so it is pure aleatoric and the misfit lives in r — a publishable
+# "where Lloyd-Taylor is biased" diagnostic. See docs/increment_sde_model_plan.md.
+#
+# This experiment is the AUTHORITATIVE default for version A. It pins:
+#
+#   Both noise-mean fixes, together (complementary):
+#     1. STRUCTURAL zero-mean noise (model.noise_zero_mean=true) — noise = eps*sigma(z).
+#     2. EMPIRICAL centred prior (mmd_noise vs the de-meaned train residual pool).
+#
+#   GROUND-TRUTH physics with NO k-head. The drift consumes the real REddyProc
+#   E0/rb directly (physics_k_source=ground_truth). Those are known Lloyd-Taylor
+#   parameters (per-site fits, available at train AND inference — not future
+#   info), so f_phys is the *real* LT prediction and r(z) is a clean misfit
+#   diagnostic. Because the physics no longer needs a predicted E0/rb, the k head
+#   is DROPPED (predict_k=false): no mse_E0/rb anchor, and hence no need for
+#   anchor normalisation (it only ever mattered to stop the raw-scale E0 anchor
+#   dominating in the *predicted* regime). This is the cleanest, simplest setup.
+#
+#   dTa — PREDICTED from drivers (not fed), anchored by mse_temp_derivative.
+#
+# Everything stays configurable. For a fully self-contained model that needs NO
+# GT E0/rb at inference (deployable to new sites), switch to the predicted regime:
+#   python scripts/train.py experiment=piae_increment_residual \
+#       model.physics_k_source=predicted model.predict_k=true \
+#       loss.normalize_anchors=true loss.weights.mse_E0=1 loss.weights.mse_rb=1
+# There the k head feeds the drift, so its anchor is required and normalisation
+# earns its keep (r(z) is then muddier — it also absorbs E0-prediction error).
+#
+# residual_l2 is the KEY knob — sweep it:
+#   python scripts/train.py -m experiment=piae_increment_residual loss.weights.residual_l2=0.1,1,5,10
+#
+# Invoke:
+#   python scripts/train.py experiment=piae_increment_residual            # single seed
+#   python scripts/train.py -m experiment=piae_increment_residual         # 7-seed sweep
+defaults:
+  - override /model: piae_increment_residual
+  - override /loss: increment_residual
+
+run_name: piae_increment_residual_seed${seed}
+
+model:
+  # Noise-mean fix 1: structural zero-mean aleatoric noise.
+  noise: true
+  noise_zero_mean: true
+  # Ground-truth physics -> the k head is redundant, so drop it entirely.
+  physics_k_source: ground_truth
+  predict_k: false
+  # dTa is predicted from exogenous drivers (not fed) and anchored below.
+  predict_temp_derivative: true
+  # Nothing extra fed into the encoder — fully exogenous increment.
+  inputs:
+    include_bnee: false
+    include_k: false
+    include_dtemp: false
+    scale_extra_inputs: false
+
+loss:
+  # No k head -> mse_E0/mse_rb are inert; zero them for clarity and turn off the
+  # (now moot) anchor normalisation. dTa keeps its natural-scale anchor.
+  normalize_anchors: false
+  weights:
+    mse_E0: 0.0
+    mse_rb: 0.0
+    mse_temp_derivative: 1.0
+
+training:
+  # Noise-mean fix 2: empirical, de-meaned (zero-mean) residual-shape prior.
+  noise_prior:
+    kind: empirical
+    center: true
+
+hydra:
+  sweep:
+    subdir: piae_increment_residual_seed${seed}
+  sweeper:
+    params:
+      seed: 0,1,2,3,4,5,6

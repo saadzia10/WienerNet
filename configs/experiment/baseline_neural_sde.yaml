@@ -1,0 +1,24 @@
+# @package _global_
+#
+# Baseline 3 — Neural SDE (data-driven drift and diffusion, no physics).
+#
+# Free neural drift + diffusion with the same one-step Euler-Maruyama integration
+# as the full model, trained on observed increments with the same likelihood. The
+# head-to-head test of the paper's critique of purely data-driven neural SDEs: the
+# drift becomes a black box (no physical parameters) and the diffusion tends to be
+# under-estimated. Neural, so report multiple seeds (mean ± standard error). Swap
+# loss=nll_student_t for heavy-tailed noise.
+#
+# Invoke:
+#   python scripts/train.py experiment=baseline_neural_sde                 # single seed
+#   python scripts/train.py -m experiment=baseline_neural_sde             # 7-seed sweep
+defaults:
+  - override /model: neural_sde
+  - override /loss: nll_gaussian
+
+hydra:
+  sweep:
+    subdir: neural_sde_seed${seed}
+  sweeper:
+    params:
+      seed: 0,1,2,3,4,5,6

@@ -1,0 +1,25 @@
+# @package _global_
+#
+# Baseline 2b (MDN) — no-physics mixture-density network (K = 3 components).
+#
+# The stronger form of the no-physics baseline: a small Gaussian mixture per row,
+# allowing a non-Gaussian / skewed predictive shape without any physics or SDE
+# structure. Trained with the mixture NLL and scored honestly via the ensemble
+# (sampling) axis — the parametric report is only a moment-matched summary. A
+# distinct named variant from the mean-variance hetero_mlp (own run dir + own row
+# in the cross-run summary). Neural, so report multiple seeds. Swap
+# loss=nll_student_t for Student-t components.
+#
+# Invoke:
+#   python scripts/train.py experiment=baseline_hetero_mdn                 # single seed
+#   python scripts/train.py -m experiment=baseline_hetero_mdn             # 7-seed sweep
+defaults:
+  - override /model: hetero_mdn
+  - override /loss: nll_gaussian
+
+hydra:
+  sweep:
+    subdir: hetero_mdn_seed${seed}
+  sweeper:
+    params:
+      seed: 0,1,2,3,4,5,6

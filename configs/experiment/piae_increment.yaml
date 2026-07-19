@@ -1,0 +1,29 @@
+# @package _global_
+#
+# Increment-SDE VERSION B — non-residual, learned-mean noise (honest baseline).
+#
+#   dNEE = f_phys*dt + (mu(z) + eps*sigma(z))*sqrt(dt) ,  NEE_{t+1} = NEE_t + dNEE
+# No residual head; the noise keeps a learned mean mu(z) so it absorbs the
+# physics misfit — the old "noise learns the misfit" behaviour, reproduced in
+# the increment formulation. Compare against version A to show the misfit moving
+# from the noise (B) into the named residual (A): report corr(noise, Ta) for B
+# vs corr(residual, Ta) for A.
+#
+# The mmd_noise prior is left at the default (gaussian, non-centred) so the noise
+# is allowed its learned mean.
+#
+# Invoke:
+#   python scripts/train.py experiment=piae_increment                     # single seed
+#   python scripts/train.py -m experiment=piae_increment                  # 7-seed sweep
+defaults:
+  - override /model: piae_increment
+  - override /loss: increment
+
+run_name: piae_increment_seed${seed}
+
+hydra:
+  sweep:
+    subdir: piae_increment_seed${seed}
+  sweeper:
+    params:
+      seed: 0,1,2,3,4,5,6

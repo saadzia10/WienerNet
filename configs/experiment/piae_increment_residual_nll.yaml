@@ -1,0 +1,52 @@
+# @package _global_
+#
+# Increment-SDE VERSION A with a LIKELIHOOD loss (the drift/noise anchoring fix).
+#
+# Instead of anchoring the deterministic drift to the noisy observed increment
+# (mse_drift) and matching the noise to a fixed prior (mmd_noise), this trains a
+# conditional likelihood of the increment:
+#     ΔNEE | state ~ N( (f_phys + r)*dt ,  (sigma*sqrt(dt))^2 )   [Gaussian]
+# so the drift + residual learn E[ΔNEE|state] and sigma learns the TRUE aleatoric
+# Std[ΔNEE|state] — no prior to tune, mean & variance don't fight. residual_l2
+# keeps r a small physics-first correction; the noise is zero-mean by construction.
+#
+# Same clean setup as piae_increment_residual: GROUND-TRUTH physics, no k-head.
+#
+# Swap the likelihood variant (the whole point — experiment with these):
+#   gaussian  : python scripts/train.py experiment=piae_increment_residual_nll
+#   beta-NLL  : ... loss=nll_beta        (Seitzer 2022; stabilises the mean fit)
+#   Student-t : ... loss=nll_student_t   (heavy tails; auto-adds a learnable dof)
+# or override inline: loss.likelihood.variant=beta loss.likelihood.beta=0.5
+#
+# Invoke:
+#   python scripts/train.py experiment=piae_increment_residual_nll            # single seed
+#   python scripts/train.py -m experiment=piae_increment_residual_nll         # 7-seed sweep
+defaults:
+  - override /model: piae_increment_residual
+  - override /loss: nll_beta        # beta-NLL wins the seed-0 bake-off: keeps the
+                                     # baseline's deterministic accuracy AND is the
+                                     # best-calibrated (see docs). Swap loss=nll_gaussian
+                                     # / loss=nll_student_t to compare.
+
+run_name: piae_increment_residual_nll_seed${seed}
+
+model:
+  # Zero-mean noise is REQUIRED by the NLL (its mean is the deterministic drift).
+  noise: true
+  noise_zero_mean: true
+  # Ground-truth physics, no k-head (cleanest residual diagnostic).
+  physics_k_source: ground_truth
+  predict_k: false
+  predict_temp_derivative: true
+  inputs:
+    include_bnee: false
+    include_k: false
+    include_dtemp: false
+    scale_extra_inputs: false
+
+hydra:
+  sweep:
+    subdir: piae_increment_residual_nll_seed${seed}
+  sweeper:
+    params:
+      seed: 0,1,2,3,4,5,6
