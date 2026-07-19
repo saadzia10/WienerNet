@@ -17,3 +17,12 @@ heads:
 
 tref: 10.0
 t0: 46.02
+
+# Encoder-input composition — which GT quantities feed the encoder. include_dtemp
+# has no temp head to compete with here; it just adds GT dTa as a plain feature.
+# (physics_k_source is inert for the VAE — there is no SDE drift.)
+inputs:
+  include_bnee: true             # boundary NEE in the encoder input
+  include_k: true                # GT (E0, rb) in the encoder input
+  include_dtemp: false           # GT dTa in the encoder input
+  scale_extra_inputs: false      # true -> standardise k/dTa with train stats before concat

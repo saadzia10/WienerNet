@@ -1,0 +1,34 @@
+# Baseline 1 — Analytical SDE (constant-diffusion, textbook version).
+#
+# The pure-physics stochastic model and the cheapest rung of the ablation ladder:
+#   dNEE     = f_phys*dt + sigma*sqrt(dt)*eps ,   NEE_{t+1} = NEE_t + dNEE
+#   f_phys   = dReco/dT(T, E0, rb) * dTa          # the SAME Lloyd-Taylor drift the
+#                                                 # main model integrates, from
+#                                                 # GROUND-TRUTH E0/rb and dTa
+# No encoder, no learned drift/misfit, no state-dependent noise. The one free
+# quantity is a single GLOBAL constant diffusion level `sigma`, estimated from
+# the spread of the training increment misfit (obs increment - physics increment)
+# via calibrate() at train time. This is the special case of the full model with
+# zero mean-correction and constant diffusion — it isolates exactly what the
+# learned misfit + state-dependent noise add over textbook physics.
+#
+# Pair with loss=nll_gaussian (the mse_*/residual_l2 terms are inert — the model
+# emits no k/temp_derivative/residual heads). Swap loss=nll_student_t for a
+# heavy-tailed constant-diffusion variant (adds a learnable dof).
+variant: analytical_sde
+
+# One global constant diffusion sigma (per_site=false) or one per site
+# (per_site=true — the per-site layout is derived deterministically from the data
+# config's site list, so checkpoints round-trip through evaluate.py). Per-site
+# captures that the fen sites have different residual scales; global is the
+# canonical textbook version.
+per_site: false
+
+# Physics constants + Euler step (per-row dt from the pipeline overrides `dt`).
+tref: 10.0
+t0: 46.02
+dt: 30.0
+
+# Initial constant diffusion level; overwritten by calibrate() on the train
+# loader, so this is only the value for an un-calibrated model.
+init_sigma: 1.0

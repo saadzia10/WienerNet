@@ -1,0 +1,16 @@
+# Baseline 2b — No-physics mixture-density network (MDN).
+#
+# Same no-physics, no-SDE black box as hetero_mlp, but with a K-component Gaussian
+# (or Student-t) mixture head so the predictive shape can be skewed / heavy-tailed
+# without any physics. A distinct named variant (own run dir + own row in the
+# cross-run summary) from the mean-variance hetero_mlp. Trained with the mixture
+# NLL and scored honestly via the ensemble (sampling) axis. Capacity matched to the
+# main model. Pair with loss=nll_gaussian (or loss=nll_student_t).
+variant: hetero_mdn
+
+latent_dim: 32
+encoder_dims: [16, 16]
+decoder_dims: [16, 16]
+activation: relu
+
+mixture_components: 3

@@ -21,3 +21,17 @@ heads:
 
 tref: 10.0
 t0: 46.02
+
+# Encoder-input composition — which GT quantities feed the encoder. Orthogonal to
+# the heads above and to their anchor losses (mse_E0/mse_rb, mse_temp_derivative).
+# CAVEAT: include_k=true while heads.k + mse_E0/mse_rb are on lets the k head
+# trivially copy input->output — turn include_k off for a clean exogenous fit.
+inputs:
+  include_bnee: true             # boundary NEE in the encoder input
+  include_k: true                # GT (E0, rb) in the encoder input
+  include_dtemp: false           # GT dTa in the encoder input; drift always uses the PREDICTED dT/dt
+  scale_extra_inputs: false      # true -> standardise k/dTa with train stats before concat
+
+# (E0, rb) source for the analytic SDE drift: 'predicted' (k head) or
+# 'ground_truth' (GT k fed straight into the physics). dT/dt is always predicted.
+physics_k_source: predicted

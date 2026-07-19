@@ -1,0 +1,52 @@
+# Increment-based Euler–Maruyama SDE — VERSION B (no residual, learned-mean noise).
+#   dNEE = f_phys*dt + (mu(z) + eps*sigma(z))*sqrt(dt) ;  nee_pred = NEE_t + dNEE
+# The noise keeps a learned mean so it absorbs the physics misfit — the old
+# "noise learns the misfit" behaviour, in increment form. The honest baseline
+# that shows what noise-as-misfit costs. Pair with loss=increment.
+variant: piae_increment
+
+latent_dim: 32
+encoder_dims: [16, 16]
+decoder_dims: [16, 16]
+activation: relu
+latent_reparameterize: false
+
+predict_k: true
+predict_temp_derivative: true
+residual: false
+noise: true
+noise_zero_mean: false           # learned mean mu(z) absorbs the drift misfit
+noise_dims: [4]
+k_activation: leaky_relu
+k_activation_slope: 0.01
+
+tref: 10.0
+t0: 46.02
+dt: 30.0
+
+inputs:
+  include_bnee: false
+  include_k: false
+  include_dtemp: false
+  scale_extra_inputs: false
+
+physics_k_source: predicted
+
+# Soft bound on the per-minute drift rate (c*tanh(d/c)); graceful OOD degradation.
+# null disables. Inert for real drift (~0.17/min); prevents catastrophic amplification.
+drift_clamp: 1.0
+
+# Terminal noise-model options (Workstream F). asymmetry adds ALD log_kappa (or set
+# loss=nll_ald); mixture_components>1 = zero-mean mixture noise head on the SDE.
+noise_asymmetry: false
+noise_mixture_components: 1
+# Physics-anchored heteroscedastic scale: sigma *= softplus(a)+softplus(b)*Reco.
+# Ties the aleatoric noise std to the respiration magnitude (fixes the L1/ALD
+# high-flux under-coverage). null/false = free sigma head only.
+noise_physics_scale: false
+noise_physics_scale_b: 0.25   # init Reco->sigma coupling softplus(b) when noise_physics_scale=true
+
+# WienerNet-SS (state-space / physics-integration) knobs (default = current behaviour).
+exact_reco_drift: false        # exact Reco(T+dT)-Reco(T) drift instead of Euler linearization
+drift_tendency: learned_observed  # learned_observed | learned_diurnal | diurnal
+noise_state_space: false       # split noise into measurement(flat)+process(Wiener,~dt)

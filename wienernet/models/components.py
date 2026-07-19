@@ -15,6 +15,40 @@ import torch.nn as nn
 import torch.nn.init as init
 
 
+def draw_unit_noise(
+    shape: tuple[int, ...], device: torch.device, nu: torch.Tensor | None = None
+) -> torch.Tensor:
+    """Draw zero-location, unit-scale reparameterisation noise.
+
+    Gaussian (`nu=None`) or standard Student-t with `nu` degrees of freedom. The
+    Student-t path builds t = Z / sqrt(G/nu) with Z~N(0,1) and G~chi2(nu) so the
+    sampled predictive law MATCHES the Student-t likelihood the noise head is
+    trained under (train/sample/score consistency). Used with a detached `nu`; the
+    reparameterised scale still carries gradient via `eps * sigma`.
+    """
+    if nu is None:
+        return torch.randn(shape, device=device)
+    nu = nu.to(device)
+    z = torch.randn(shape, device=device)
+    # chi2(nu) = Gamma(concentration=nu/2, rate=1/2)
+    g = torch.distributions.Gamma(nu / 2.0, 0.5).sample(shape).to(device)
+    return z / torch.sqrt(g / nu)
+
+
+def sample_ald_noise(shape: tuple[int, ...], device: torch.device, kappa: torch.Tensor) -> torch.Tensor:
+    """Standard asymmetric-Laplace (location 0, scale 1, asymmetry `kappa`) samples
+    via the inverse CDF. Matches the ALD NLL in losses/likelihood so the sampled
+    predictive law is consistent with training + scoring. `kappa` is a scalar tensor
+    (detached); kappa=1 is the symmetric Laplace."""
+    kappa = kappa.to(device)
+    k2 = kappa ** 2
+    thresh = k2 / (1.0 + k2)
+    u = torch.rand(shape, device=device).clamp(1e-6, 1 - 1e-6)
+    x_neg = kappa * torch.log(u * (1.0 + k2) / k2)
+    x_pos = -(1.0 / kappa) * torch.log((1.0 - u) * (1.0 + k2))
+    return torch.where(u < thresh, x_neg, x_pos)
+
+
 def build_mlp(
     in_dim: int,
     hidden_dims: Sequence[int],

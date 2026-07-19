@@ -1,0 +1,60 @@
+# Increment-based Euler–Maruyama SDE — VERSION A (residual + zero-mean noise).
+#   dNEE = (f_phys + r)*dt + sigma*sqrt(dt)*Z ;  nee_pred = NEE_t + dNEE
+# r(z) is the drift-misfit diagnostic ("where Lloyd-Taylor is biased"); the
+# noise is pure aleatoric. Pair with loss=increment_residual (residual_l2 on).
+# See docs/increment_sde_model_plan.md.
+variant: piae_increment_residual
+
+latent_dim: 32
+encoder_dims: [16, 16]
+decoder_dims: [16, 16]
+activation: relu
+latent_reparameterize: false
+
+# Heads / variant switches
+predict_k: true                  # E0, rb  (anchored by mse_E0/mse_rb)
+predict_temp_derivative: true    # dT/dt   (anchored by mse_temp_derivative — faithful dTa)
+residual: true                   # r(z) drift-misfit correction
+noise: true
+noise_zero_mean: true            # aleatoric only; the residual carries the misfit
+noise_dims: [4]
+residual_dims: [16, 16]
+k_activation: leaky_relu
+k_activation_slope: 0.01
+
+# Physics constants + Euler step (per-row dt from the data overrides this scalar)
+tref: 10.0
+t0: 46.02
+dt: 30.0
+
+# Encoder inputs — fully exogenous (increment reformulation): bNEE is the Euler
+# integration boundary only, E0/rb are PREDICTED (anchored) not fed, dTa predicted.
+# Flip any include_* to feed the GT instead (see InputsConfig clean-prediction caveat).
+inputs:
+  include_bnee: false
+  include_k: false
+  include_dtemp: false
+  scale_extra_inputs: false
+
+# (E0, rb) source for the analytic drift: 'predicted' (k head) or 'ground_truth'.
+physics_k_source: predicted
+
+# Soft bound on the per-minute drift rate (c*tanh(d/c)); graceful OOD degradation.
+# null disables. Inert for real drift (~0.17/min); prevents catastrophic amplification.
+drift_clamp: 1.0
+
+# Terminal noise-model options (Workstream F). asymmetry adds ALD log_kappa (or set
+# loss=nll_ald); mixture_components>1 = zero-mean mixture noise head on the SDE.
+noise_asymmetry: false
+noise_mixture_components: 1
+# Physics-anchored heteroscedastic scale: sigma *= softplus(a)+softplus(b)*Reco.
+# Ties the aleatoric noise std to the respiration magnitude (fixes the L1/ALD
+# high-flux under-coverage). Applies to the NOISE branch only — the residual r(z)
+# stays a deterministic drift-misfit correction. null/false = free sigma head only.
+noise_physics_scale: false
+noise_physics_scale_b: 0.25   # init Reco->sigma coupling softplus(b) when noise_physics_scale=true
+
+# WienerNet-SS (state-space / physics-integration) knobs (default = current behaviour).
+exact_reco_drift: false        # exact Reco(T+dT)-Reco(T) drift instead of Euler linearization
+drift_tendency: learned_observed  # learned_observed | learned_diurnal | diurnal
+noise_state_space: false       # split noise into measurement(flat)+process(Wiener,~dt)

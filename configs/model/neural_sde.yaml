@@ -1,0 +1,22 @@
+# Baseline 3 — Neural SDE (data-driven drift and diffusion, no physics).
+#
+# A direct (observation-space) neural SDE: both drift and diffusion are free
+# neural functions of the state, integrated with the same one-step Euler-Maruyama
+# scheme as the full model:
+#   z     = encoder(X)
+#   g(z)  = drift_head(z)                  # free neural drift RATE (no physics)
+#   σ(z)  = softplus(sigma_head(z))        # free neural diffusion scale
+#   ΔNEE  = g(z)*dt + σ(z)*sqrt(dt)*eps ,  NEE_{t+1} = NEE_t + ΔNEE
+# Keeps the SDE dt/sqrt(dt) structure (unlike hetero_mlp) but replaces the physics
+# drift with a black box (unlike analytical_sde) and has no misfit decomposition
+# (unlike the full model). Substantiates the critique of purely data-driven neural
+# SDEs (black-box drift, under-estimated diffusion). Capacity matched to the main
+# model. Pair with loss=nll_gaussian (or loss=nll_student_t).
+variant: neural_sde
+
+latent_dim: 32
+encoder_dims: [16, 16]
+decoder_dims: [16, 16]
+activation: relu
+
+dt: 30.0

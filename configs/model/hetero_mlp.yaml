@@ -1,0 +1,27 @@
+# Baseline 2 — No-physics heteroscedastic model (mean-variance / MDN).
+#
+# A black-box network mapping the drivers straight to a predictive distribution
+# over the next-step NEE increment (anchored on the observed boundary):
+#   z        = encoder(X)
+#   Δμ, logσ = mean_head(z), log_scale_head(z)
+#   NEE_{t+1} ~ mixture_k softmax(logits_k) * comp(NEE_t + Δμ_k, σ_k)
+# NO physics, NO SDE structure (no drift, no dt/sqrt(dt) Euler scaling, no misfit).
+# The key ablation: does embedding physics + SDE structure buy anything over a
+# flexible heteroscedastic conditional density? Capacity matched to the main model
+# (same encoder/decoder widths, same latent dim).
+#
+# mixture_components:
+#   1  -> mean-variance head (a single Gaussian / Student-t per row; rides the
+#         exact parametric CRPS/NLL/PIT/coverage scoring).
+#   >1 -> mixture-density network (K components); trained with the mixture NLL and
+#         scored honestly via the ensemble (sampling) axis — a single (mean,scale)
+#         only moment-matches a mixture.
+# Pair with loss=nll_gaussian (or loss=nll_student_t for heavy-tailed components).
+variant: hetero_mlp
+
+latent_dim: 32
+encoder_dims: [16, 16]
+decoder_dims: [16, 16]
+activation: relu
+
+mixture_components: 1

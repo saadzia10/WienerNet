@@ -1,0 +1,35 @@
+# Increment-based Euler–Maruyama SDE — VERSION C (deterministic drift only).
+#   dNEE = f_phys*dt ;  nee_pred = NEE_t + dNEE
+# The PIAE-reg analog: predicts the drift and adds it to the observed NEE via
+# Euler; no residual, no diffusion term. Pair with loss=increment. Set noise:true
+# + noise_zero_mean:true here if you want a stochastic-C (aleatoric-only) instead.
+variant: piae_reg_increment
+
+latent_dim: 32
+encoder_dims: [16, 16]
+decoder_dims: [16, 16]
+activation: relu
+latent_reparameterize: false
+
+predict_k: true
+predict_temp_derivative: true
+residual: false
+noise: false                     # deterministic — no diffusion term
+k_activation: leaky_relu
+k_activation_slope: 0.01
+
+tref: 10.0
+t0: 46.02
+dt: 30.0
+
+inputs:
+  include_bnee: false
+  include_k: false
+  include_dtemp: false
+  scale_extra_inputs: false
+
+physics_k_source: predicted
+
+# Soft bound on the per-minute drift rate (c*tanh(d/c)); graceful OOD degradation.
+# null disables. Inert for real drift (~0.17/min); prevents catastrophic amplification.
+drift_clamp: 1.0
