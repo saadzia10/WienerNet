@@ -35,11 +35,20 @@ def r2(y: np.ndarray, y_hat: np.ndarray) -> float:
     return float(r2_score(_flat(y), _flat(y_hat)))
 
 
+def bias(y: np.ndarray, y_hat: np.ndarray) -> float:
+    """Mean signed error (prediction - truth). >0 = over-prediction on average."""
+    return float(np.mean(_flat(y_hat) - _flat(y)))
+
+
 def mmd_rbf(y: np.ndarray, y_hat: np.ndarray, *, gamma: float = 1.0) -> float:
     """Maximum mean discrepancy with an RBF kernel. Returns sqrt(MMD^2).
 
-    Used as a single-number distributional distance — small means the two
-    samples come from similar distributions.
+    SECONDARY, *marginal* distributional distance: it compares the pooled
+    one-step marginals of y and y_hat, so it cannot detect per-timestep
+    miscalibration (a model with the right marginal but wrong per-point spread
+    scores well). Use the probabilistic metrics (CRPS/PIT/coverage) as the
+    headline; keep MMD as a marginal-fidelity sanity check on the *same* one-step
+    quantity and scale the model actually predicts.
     """
     y = _column(y)
     y_hat = _column(y_hat)
@@ -58,7 +67,14 @@ def kl_divergence_histogram(
     bins: int = 100,
     epsilon: float = 1e-10,
 ) -> float:
-    """Discrete KL between histograms of y and y_hat (shared bins from y)."""
+    """Discrete KL between histograms of y and y_hat (shared bins from y).
+
+    DEMOTED / appendix-only: this requires binning a density and is numerically
+    unstable — the value swings with `bins` and with tail sparsity (this is why
+    it varied wildly across sites). Prefer Wasserstein or MMD for marginal
+    fidelity and CRPS/NLL for the predictive distribution; report KL only with an
+    explicit caveat about bin sensitivity.
+    """
     y = _flat(y)
     y_hat = _flat(y_hat)
     hist_y, edges = np.histogram(y, bins=bins, density=True)
@@ -69,6 +85,12 @@ def kl_divergence_histogram(
 
 
 def wasserstein(y: np.ndarray, y_hat: np.ndarray) -> float:
+    """W1 (earth-mover) distance between the marginals of y and y_hat.
+
+    SECONDARY, *marginal* distributional fidelity (like MMD): robust and
+    bin-free, but blind to per-timestep calibration. Keep as a marginal check
+    alongside CRPS/PIT.
+    """
     return float(wasserstein_distance(_flat(y), _flat(y_hat)))
 
 
@@ -83,6 +105,7 @@ class MetricBundle:
     n: int                  # sample count
     mae: float
     rmse: float
+    bias: float             # mean signed error (pred - truth); secondary sanity axis
     r2: float
     mmd: float | None       # may be None if MMD wasn't requested (it's O(n²) RAM)
     kl: float
@@ -93,6 +116,7 @@ class MetricBundle:
             "n": self.n,
             "mae": self.mae,
             "rmse": self.rmse,
+            "bias": self.bias,
             "r2": self.r2,
             "mmd": self.mmd,
             "kl": self.kl,
@@ -139,6 +163,7 @@ def compute_metric_bundle(
         n=n,
         mae=mae(y, y_hat),
         rmse=rmse(y, y_hat),
+        bias=bias(y, y_hat),
         r2=r2(y, y_hat),
         mmd=mmd_val,
         kl=kl_divergence_histogram(y, y_hat, bins=kl_bins),
