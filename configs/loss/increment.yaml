@@ -1,0 +1,28 @@
+# Loss for the increment-SDE versions B (piae_increment) and C (piae_reg_increment).
+# Same as increment_residual but with residual_l2 off (no residual head). For C
+# the noise head is absent, so mmd_noise is inert (guarded on outputs['noise']).
+#
+# normalize_anchors=true — see increment_residual.yaml; balances the MSE terms so
+# the E0 anchor stops dominating the loss.
+normalize_anchors: true
+
+weights:
+  mse_nee: 1.0                   # bNEE + dNEE  vs  NEE_{t+k}
+  mse_bnee: 0.0                  # no level reconstruction
+  mse_E0: 1.0
+  mse_rb: 1.0
+  mse_temp_derivative: 1.0
+  mse_drift: 1.0
+
+  residual_l2: 0.0               # no residual head in B/C
+
+  mmd_nee: 0.0
+  mmd_bnee: 0.0
+  mmd_noise: 1.0                 # B: match the (learned-mean) noise; inert for C
+
+  kl_latent: 0.0
+
+mmd:
+  kernel_mul: 2.0
+  kernel_num: 5
+  fix_sigma: null

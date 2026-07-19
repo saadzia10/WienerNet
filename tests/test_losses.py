@@ -71,6 +71,34 @@ def test_compute_losses_skips_zero_weights():
     assert set(losses.keys()) == {"mse_nee", "mse_E0"}, f"unexpected losses: {set(losses.keys())}"
 
 
+def test_compute_losses_target_scales_normalise_only_listed_mse():
+    """target_scales divides an MSE by scale**2; unlisted terms are untouched."""
+    batch = {
+        "NEE": torch.zeros(8), "bNEE": torch.zeros(8),
+        "k": torch.zeros(8, 2), "dT": torch.zeros(8),
+        "dNEE": torch.zeros(8), "T": torch.zeros(8),
+    }
+    outputs = {
+        "nee_pred": torch.full((8, 1), 2.0),
+        "bnee": None,
+        "k": torch.full((8, 2), 3.0),           # error 3 on both E0 and rb
+        "temp_derivative": None, "drift": None,
+        "noise": None, "noise_mu": None, "noise_logvar": None,
+        "latent": None, "latent_mu": None, "latent_logvar": None,
+    }
+    weights = {"mse_nee": 1.0, "mse_E0": 1.0, "mse_rb": 1.0}
+
+    raw = compute_losses(batch, outputs, weights)
+    scaled = compute_losses(batch, outputs, weights, target_scales={"mse_E0": 3.0})
+
+    # mse_E0: raw 9.0 -> 9/3**2 = 1.0
+    assert raw["mse_E0"].item() == pytest.approx(9.0)
+    assert scaled["mse_E0"].item() == pytest.approx(1.0)
+    # mse_rb (not listed) and mse_nee (not listed) are unchanged
+    assert scaled["mse_rb"].item() == pytest.approx(raw["mse_rb"].item())
+    assert scaled["mse_nee"].item() == pytest.approx(raw["mse_nee"].item())
+
+
 def test_compute_losses_kl_for_vae():
     """kl_latent term computes only when latent_mu/logvar are present."""
     batch = {"NEE": torch.randn(8), "bNEE": torch.randn(8), "k": torch.randn(8, 2),

@@ -1,0 +1,33 @@
+# Loss for the increment-SDE VERSION A (piae_increment_residual).
+# nee_pred = NEE_t + dNEE, so mse_nee is the one-step increment loss vs NEE_{t+k}.
+# No level reconstruction -> mse_bnee / mmd_bnee are off (inert anyway: bnee=None).
+#
+# normalize_anchors=true divides each MSE term by its train-target variance, so
+# the raw-scale E0 anchor (~112±42) stops dominating and the tiny dTa/dNEE terms
+# stop vanishing. With it on, the weights below are all ~1.0 and genuinely trade
+# the terms off. (Seed-0 sweep: this took mse_nee 2.98 -> 2.66 and restored a
+# faithful dTemp. See docs/increment_sde_model_plan.md.)
+normalize_anchors: true
+
+weights:
+  mse_nee: 1.0                   # bNEE + dNEE  vs  NEE_{t+k}
+  mse_bnee: 0.0                  # no level reconstruction
+  mse_E0: 1.0                    # anchor Lloyd-Taylor params (REddyProc)
+  mse_rb: 1.0
+  mse_temp_derivative: 1.0       # faithful dTa (not a free knob)
+  mse_drift: 1.0                 # drift RATE (f_phys + r) vs GT dNEE rate
+
+  # KEY hyperparameter of version A — sweep 0.1 / 1 / 5 / 10. Too low: the
+  # residual eats the physics; too high: it can't correct the misfit.
+  residual_l2: 1.0
+
+  mmd_nee: 0.0
+  mmd_bnee: 0.0
+  mmd_noise: 1.0                 # match the aleatoric noise to a zero-mean prior
+
+  kl_latent: 0.0                 # only meaningful if latent_reparameterize=true
+
+mmd:
+  kernel_mul: 2.0
+  kernel_num: 5
+  fix_sigma: null

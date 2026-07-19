@@ -12,6 +12,7 @@ The terms supported (any subset can be enabled):
         mse_E0, mse_rb       — predicted Lloyd-Taylor parameters
         mse_temp_derivative  — predicted dT/dt
         mse_drift            — predicted f vs target dNEE (finite-difference)
+        residual_l2          — L2 penalty on the increment model's residual head
 
     Distributional (MMD):
         mmd_nee, mmd_bnee    — match the distribution of NEE / boundary NEE
@@ -29,6 +30,8 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+from .likelihood import compute_nll, mixture_nll
+
 
 def compute_losses(
     batch: Mapping[str, torch.Tensor],
@@ -37,6 +40,8 @@ def compute_losses(
     *,
     mmd_loss_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor] | None = None,
     noise_prior_fn: Callable[[torch.Tensor], torch.Tensor] | None = None,
+    target_scales: Mapping[str, float] | None = None,
+    likelihood: Mapping[str, object] | None = None,
 ) -> dict[str, torch.Tensor]:
     """Compute every enabled loss term.
 
@@ -50,6 +55,16 @@ def compute_losses(
             mmd_* weight is non-zero.
         noise_prior_fn: callable(noise) -> noise_prior sample. The default
             in the reference code is `randn_like(noise) * noise_std + noise_mu`.
+        target_scales: optional {mse_term: std}. Each listed MSE is divided by
+            scale**2, turning it into ~"fraction of variance unexplained" (O(1)).
+            Only terms present in the dict are scaled; the rest keep their raw
+            scale. The loader supplies scales for the k anchors ONLY (E0~112,
+            rb~4) because those live on the REddyProc-parameter scale and their
+            raw MSE (~1e4) dominates the loss; the flux-scale terms (mse_nee) and
+            the naturally-small physics terms (mse_temp_derivative, mse_drift) are
+            left alone — normalising them to unit variance would force the weak
+            30-min physics up to parity with mse_nee and hurt the fit. MMD / KL
+            are never scaled.
 
     Returns:
         Dict {term_name: weighted_loss_tensor}. The caller sums these for the
@@ -61,38 +76,91 @@ def compute_losses(
     def _w(name: str) -> float:
         return float(weights.get(name, 0.0))
 
+    def _s2(name: str) -> float:
+        """1 / scale**2 normaliser for MSE term `name` (1.0 if no scale given)."""
+        if not target_scales:
+            return 1.0
+        s = float(target_scales.get(name, 1.0))
+        return 1.0 / (s * s) if s > 0 else 1.0
+
     # ------------------------------------------------------------------
     # MSE — point-wise
     # ------------------------------------------------------------------
     if _w("mse_nee") > 0 and outputs.get("nee_pred") is not None:
-        losses["mse_nee"] = _w("mse_nee") * F.mse_loss(
+        losses["mse_nee"] = _w("mse_nee") * _s2("mse_nee") * F.mse_loss(
             outputs["nee_pred"], batch["NEE"].view(-1, 1)
         )
 
     if _w("mse_bnee") > 0 and outputs.get("bnee") is not None:
-        losses["mse_bnee"] = _w("mse_bnee") * F.mse_loss(
+        losses["mse_bnee"] = _w("mse_bnee") * _s2("mse_bnee") * F.mse_loss(
             outputs["bnee"], batch["bNEE"].view(-1, 1)
         )
 
     if outputs.get("k") is not None:
         if _w("mse_E0") > 0:
-            losses["mse_E0"] = _w("mse_E0") * F.mse_loss(
+            losses["mse_E0"] = _w("mse_E0") * _s2("mse_E0") * F.mse_loss(
                 outputs["k"][:, 0:1], batch["k"][:, 0:1]
             )
         if _w("mse_rb") > 0:
-            losses["mse_rb"] = _w("mse_rb") * F.mse_loss(
+            losses["mse_rb"] = _w("mse_rb") * _s2("mse_rb") * F.mse_loss(
                 outputs["k"][:, 1:2], batch["k"][:, 1:2]
             )
 
     if _w("mse_temp_derivative") > 0 and outputs.get("temp_derivative") is not None:
-        losses["mse_temp_derivative"] = _w("mse_temp_derivative") * F.mse_loss(
-            outputs["temp_derivative"], batch["dT"].view(-1, 1)
+        # Anchor the tendency head to the physics diurnal target when the model provides
+        # one (drift_tendency="learned_diurnal"), else to the observed dTa.
+        _td_target = outputs.get("temp_derivative_target")
+        if _td_target is None:
+            _td_target = batch["dT"].view(-1, 1)
+        losses["mse_temp_derivative"] = _w("mse_temp_derivative") * _s2("mse_temp_derivative") * F.mse_loss(
+            outputs["temp_derivative"], _td_target
         )
 
     if _w("mse_drift") > 0 and outputs.get("drift") is not None:
-        losses["mse_drift"] = _w("mse_drift") * F.mse_loss(
+        losses["mse_drift"] = _w("mse_drift") * _s2("mse_drift") * F.mse_loss(
             outputs["drift"], batch["dNEE"].view(-1, 1)
         )
+
+    # L2 on the increment model's residual drift-misfit head (version A). Keeps
+    # the residual a *small* correction so the physics explains first; weight 0
+    # (or no residual head) makes it a no-op.
+    if _w("residual_l2") > 0 and outputs.get("residual") is not None:
+        losses["residual_l2"] = _w("residual_l2") * outputs["residual"].pow(2).mean()
+
+    # ------------------------------------------------------------------
+    # Likelihood (NLL) — the principled replacement for mse_nee + mse_drift +
+    # mmd_noise on the stochastic part. The model exposes (nee_mean, nee_log_std)
+    # on the NEE_{t+1} target scale; the NLL makes nee_mean -> E[NEE|state]
+    # (drift/residual) and exp(nee_log_std) -> Std[NEE|state] (aleatoric noise),
+    # with no prior to tune. Set likelihood={'variant','weight','beta'} to enable
+    # and zero the mse_nee/mse_drift/mmd_noise weights. See losses/likelihood.py.
+    # ------------------------------------------------------------------
+    if likelihood is not None:
+        w_nll = float(likelihood.get("weight", 0.0))
+        variant = str(likelihood.get("variant", "gaussian"))
+        # Mixture-density head (no-physics MDN baseline): a K-component mixture NLL,
+        # which no single (mean, scale) can represent. Detected via the mix_* keys.
+        if w_nll > 0 and outputs.get("mix_logits") is not None:
+            mix_variant = "student_t" if variant == "student_t" else "gaussian"
+            losses["nll"] = w_nll * mixture_nll(
+                batch["NEE"].view(-1, 1),
+                outputs["mix_means"],
+                outputs["mix_log_scales"],
+                outputs["mix_logits"],
+                variant=mix_variant,
+                log_nu=outputs.get("log_nu"),
+            )
+        elif (w_nll > 0 and outputs.get("nee_mean") is not None
+                and outputs.get("nee_log_std") is not None):
+            losses["nll"] = w_nll * compute_nll(
+                batch["NEE"].view(-1, 1),
+                outputs["nee_mean"],
+                outputs["nee_log_std"],
+                variant=variant,
+                beta=float(likelihood.get("beta", 0.5)),
+                log_nu=outputs.get("log_nu"),
+                log_kappa=outputs.get("log_kappa"),
+            )
 
     # ------------------------------------------------------------------
     # MMD — distributional

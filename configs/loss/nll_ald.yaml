@@ -1,0 +1,34 @@
+# Likelihood loss — Asymmetric-Laplace (ALD) NLL — heavy-tailed AND right-skewed noise (Workstream F.1).
+# proper conditional likelihood of NEE_{t+1} ~ N(nee_mean, exp(nee_log_std)^2):
+# nee_mean (drift/residual) -> conditional mean, exp(nee_log_std) (sigma) ->
+# conditional aleatoric std. No prior to tune; mean & variance don't fight.
+#
+# Requires the model's noise to be ZERO-MEAN (noise_zero_mean=true) — the NLL's
+# mean is the deterministic prediction, so the noise must be pure spread.
+# Independent supervision (mse_E0/rb/temp_derivative) and residual_l2 stay on;
+# normalize_anchors keeps E0/rb from dominating if a k-head is present (inert for
+# the GT-no-head increment default).
+normalize_anchors: true
+
+weights:
+  mse_nee: 0.0                   # replaced by the NLL
+  mse_bnee: 0.0
+  mse_E0: 1.0                    # inert when predict_k=false; anchored otherwise
+  mse_rb: 1.0
+  mse_temp_derivative: 1.0       # faithful dTa (independent supervision)
+  mse_drift: 0.0                 # replaced by the NLL (was the deterministic-to-noisy anchor)
+  residual_l2: 1.0               # physics-first: keep the residual a small correction
+  mmd_nee: 0.0
+  mmd_bnee: 0.0
+  mmd_noise: 0.0                 # replaced by the NLL (noise no longer matched to a prior)
+  kl_latent: 0.0
+
+likelihood:
+  variant: ald                   # asymmetric Laplace; adds a learnable asymmetry (log_kappa)
+  weight: 1.0
+  beta: 0.5                      # only used by variant=beta
+
+mmd:
+  kernel_mul: 2.0
+  kernel_num: 5
+  fix_sigma: null
