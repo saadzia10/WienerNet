@@ -1,0 +1,13 @@
+skip train mse_mmd_baseline (exists)
+skip train nll_gaussian (exists)
+skip train nll_beta (exists)
+skip train nll_student_t (exists)
+
+          method  nee_r2  nee_rmse     mmd   wass  corr_noise_Ta  corr_resid_Ta  noise_mean  emp_resid_std  pred_incr_std_mean  cover95
+mse_mmd_baseline  0.6576    1.6473 0.01608 0.0329          0.014         -0.249      0.0002          1.647               0.027    0.074
+    nll_gaussian -0.5036    3.4521 0.21403 1.1987          0.000          0.032      0.0020          1.753               2.973    0.986
+        nll_beta  0.3377    2.2911 0.05701 0.2754         -0.005         -0.195      0.0013          1.641               1.274    0.932
+   nll_student_t  0.3252    2.3126 0.03658 0.1388          0.004          0.006      0.0009          2.056               0.823    0.840
+
+calibration: emp_resid_std should ~= pred_incr_std_mean; cover95 should ~= 0.95
+wrote /tmp/claude-1000/-home-cognitia-Desktop-Work-PhD-WienerNet/b4a3f217-adb5-459c-9476-66908216cac1/scratchpad/nllcmp/nll_comparison.csv

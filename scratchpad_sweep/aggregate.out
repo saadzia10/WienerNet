@@ -1,0 +1,156 @@
+  ae                 k1 s0  R2=0.7783  RMSE=1.2782
+  ae                 k1 s1  R2=0.7754  RMSE=1.2866
+  ae                 k1 s2  R2=0.7769  RMSE=1.2822
+  ae                 k2 s0  R2=0.7770  RMSE=1.2388
+  ae                 k2 s1  R2=0.7743  RMSE=1.2464
+  ae                 k2 s2  R2=0.7758  RMSE=1.2422
+  ae                 k4 s0  R2=0.7845  RMSE=1.1876
+  ae                 k4 s1  R2=0.7856  RMSE=1.1846
+  ae                 k4 s2  R2=0.7886  RMSE=1.1762
+  inc_nonresidual    k1 s0  R2=0.6856  RMSE=1.5221
+  inc_nonresidual    k1 s1  R2=0.6722  RMSE=1.5543
+  inc_nonresidual    k1 s2  R2=0.6760  RMSE=1.5453
+  inc_nonresidual    k2 s0  R2=0.6493  RMSE=1.5536
+  inc_nonresidual    k2 s1  R2=0.6549  RMSE=1.5411
+  inc_nonresidual    k2 s2  R2=0.6382  RMSE=1.5779
+  inc_nonresidual    k4 s0  R2=0.6141  RMSE=1.5894
+  inc_nonresidual    k4 s1  R2=0.6218  RMSE=1.5734
+  inc_nonresidual    k4 s2  R2=0.6142  RMSE=1.5891
+  inc_reg            k1 s0  R2=0.6900  RMSE=1.5115
+  inc_reg            k1 s1  R2=0.6906  RMSE=1.5100
+  inc_reg            k1 s2  R2=0.6888  RMSE=1.5144
+  inc_reg            k2 s0  R2=0.6529  RMSE=1.5456
+  inc_reg            k2 s1  R2=0.6556  RMSE=1.5394
+  inc_reg            k2 s2  R2=0.6534  RMSE=1.5445
+  inc_reg            k4 s0  R2=0.6142  RMSE=1.5890
+  inc_reg            k4 s1  R2=0.6221  RMSE=1.5727
+  inc_reg            k4 s2  R2=0.6181  RMSE=1.5812
+  inc_residual       k1 s0  R2=0.6867  RMSE=1.5196
+  inc_residual       k1 s1  R2=0.6902  RMSE=1.5110
+  inc_residual       k1 s2  R2=0.6882  RMSE=1.5159
+  inc_residual       k2 s0  R2=0.6485  RMSE=1.5553
+  inc_residual       k2 s1  R2=0.6529  RMSE=1.5455
+  inc_residual       k2 s2  R2=0.6532  RMSE=1.5449
+  inc_residual       k4 s0  R2=0.6040  RMSE=1.6100
+  inc_residual       k4 s1  R2=0.6166  RMSE=1.5843
+  inc_residual       k4 s2  R2=0.6107  RMSE=1.5963
+  rf                 k1 s0  R2=0.7597  RMSE=1.3307
+  rf                 k1 s1  R2=0.7610  RMSE=1.3272
+  rf                 k1 s2  R2=0.7572  RMSE=1.3377
+  rf                 k2 s0  R2=0.7463  RMSE=1.3213
+  rf                 k2 s1  R2=0.7460  RMSE=1.3220
+  rf                 k2 s2  R2=0.7459  RMSE=1.3224
+  rf                 k4 s0  R2=0.7808  RMSE=1.1979
+  rf                 k4 s1  R2=0.7787  RMSE=1.2035
+  rf                 k4 s2  R2=0.7807  RMSE=1.1981
+  vae                k1 s0  R2=0.5692  RMSE=1.7817
+  vae                k1 s1  R2=0.7348  RMSE=1.3980
+  vae                k1 s2  R2=0.7220  RMSE=1.4313
+  vae                k2 s0  R2=0.7151  RMSE=1.4002
+  vae                k2 s1  R2=0.7317  RMSE=1.3589
+  vae                k2 s2  R2=0.6319  RMSE=1.5915
+  vae                k4 s0  R2=0.6367  RMSE=1.5421
+  vae                k4 s1  R2=0.6994  RMSE=1.4027
+  vae                k4 s2  R2=-0.0007  RMSE=2.5593
+  wnet_piae_fix      k1 s0  R2=0.7513  RMSE=1.3538
+  wnet_piae_fix      k1 s1  R2=0.6169  RMSE=1.6803
+  wnet_piae_fix      k1 s2  R2=0.6297  RMSE=1.6519
+  wnet_piae_fix      k2 s0  R2=0.7332  RMSE=1.3551
+  wnet_piae_fix      k2 s1  R2=-0.2345  RMSE=2.9147
+  wnet_piae_fix      k2 s2  R2=-0.0497  RMSE=2.6877
+  wnet_piae_fix      k4 s0  R2=0.0974  RMSE=2.4307
+  wnet_piae_fix      k4 s1  R2=-0.0599  RMSE=2.6340
+  wnet_piae_fix      k4 s2  R2=0.4662  RMSE=1.8693
+  wnet_piae_nofix    k1 s0  R2=0.6315  RMSE=1.6478
+  wnet_piae_nofix    k1 s1  R2=0.7735  RMSE=1.2920
+  wnet_piae_nofix    k1 s2  R2=0.7643  RMSE=1.3178
+  wnet_piae_nofix    k2 s0  R2=0.6163  RMSE=1.6250
+  wnet_piae_nofix    k2 s1  R2=0.7235  RMSE=1.3795
+  wnet_piae_nofix    k2 s2  R2=0.6952  RMSE=1.4483
+  wnet_piae_nofix    k4 s0  R2=0.5419  RMSE=1.7316
+  wnet_piae_nofix    k4 s1  R2=0.7613  RMSE=1.2499
+  wnet_piae_nofix    k4 s2  R2=0.6922  RMSE=1.4194
+  wnet_piaereg_fix   k1 s0  R2=0.7443  RMSE=1.3726
+  wnet_piaereg_fix   k1 s1  R2=0.6110  RMSE=1.6931
+  wnet_piaereg_fix   k1 s2  R2=0.6205  RMSE=1.6723
+  wnet_piaereg_fix   k2 s0  R2=0.7340  RMSE=1.3531
+  wnet_piaereg_fix   k2 s1  R2=0.6735  RMSE=1.4991
+  wnet_piaereg_fix   k2 s2  R2=0.6832  RMSE=1.4765
+  wnet_piaereg_fix   k4 s0  R2=0.7418  RMSE=1.3001
+  wnet_piaereg_fix   k4 s1  R2=0.0711  RMSE=2.4658
+  wnet_piaereg_fix   k4 s2  R2=0.6267  RMSE=1.5632
+  wnet_piaereg_nofix k1 s0  R2=0.6179  RMSE=1.6780
+  wnet_piaereg_nofix k1 s1  R2=0.7718  RMSE=1.2969
+  wnet_piaereg_nofix k1 s2  R2=0.7671  RMSE=1.3100
+  wnet_piaereg_nofix k2 s0  R2=0.5999  RMSE=1.6593
+  wnet_piaereg_nofix k2 s1  R2=0.7735  RMSE=1.2486
+  wnet_piaereg_nofix k2 s2  R2=0.7118  RMSE=1.4082
+  wnet_piaereg_nofix k4 s0  R2=0.6048  RMSE=1.6084
+  wnet_piaereg_nofix k4 s1  R2=0.7874  RMSE=1.1797
+  wnet_piaereg_nofix k4 s2  R2=0.7112  RMSE=1.3749
+  wnet_pivae_fix     k1 s0  R2=-0.1580  RMSE=2.9213
+  wnet_pivae_fix     k1 s1  R2=-0.1483  RMSE=2.9089
+  wnet_pivae_fix     k1 s2  R2=0.2728  RMSE=2.3150
+  wnet_pivae_fix     k2 s0  R2=-0.1096  RMSE=2.7634
+  wnet_pivae_fix     k2 s1  R2=0.0449  RMSE=2.5637
+  wnet_pivae_fix     k2 s2  R2=-0.1471  RMSE=2.8096
+  wnet_pivae_fix     k4 s0  R2=-0.1519  RMSE=2.7459
+  wnet_pivae_fix     k4 s1  R2=-0.1434  RMSE=2.7357
+  wnet_pivae_fix     k4 s2  R2=-0.0678  RMSE=2.6437
+  wnet_pivae_nofix   k1 s0  R2=-0.1575  RMSE=2.9206
+  wnet_pivae_nofix   k1 s1  R2=-0.0536  RMSE=2.7865
+  wnet_pivae_nofix   k1 s2  R2=-0.0356  RMSE=2.7626
+  wnet_pivae_nofix   k2 s0  R2=-0.1361  RMSE=2.7962
+  wnet_pivae_nofix   k2 s1  R2=-0.1266  RMSE=2.7844
+  wnet_pivae_nofix   k2 s2  R2=-0.0301  RMSE=2.6626
+  wnet_pivae_nofix   k4 s0  R2=-0.1244  RMSE=2.7129
+  wnet_pivae_nofix   k4 s1  R2=-0.0986  RMSE=2.6816
+  wnet_pivae_nofix   k4 s2  R2=-0.0885  RMSE=2.6693
+  xgb                k1 s0  R2=0.7398  RMSE=1.3847
+  xgb                k1 s1  R2=0.7398  RMSE=1.3847
+  xgb                k1 s2  R2=0.7398  RMSE=1.3847
+  xgb                k2 s0  R2=0.7162  RMSE=1.3975
+  xgb                k2 s1  R2=0.7162  RMSE=1.3975
+  xgb                k2 s2  R2=0.7162  RMSE=1.3975
+  xgb                k4 s0  R2=0.7657  RMSE=1.2384
+  xgb                k4 s1  R2=0.7657  RMSE=1.2384
+  xgb                k4 s2  R2=0.7657  RMSE=1.2384
+
+================ NEE R2 (mean over seeds) — rows=method, cols=k ================
+k                        1       2       4
+method                                    
+ae                  0.7769  0.7757  0.7863
+inc_nonresidual     0.6779  0.6475  0.6167
+inc_reg             0.6898  0.6540  0.6181
+inc_residual        0.6883  0.6515  0.6104
+rf                  0.7593  0.7461  0.7801
+vae                 0.6753  0.6929  0.4451
+wnet_piae_fix       0.6660  0.1497  0.1679
+wnet_piae_nofix     0.7231  0.6783  0.6652
+wnet_piaereg_fix    0.6586  0.6969  0.4799
+wnet_piaereg_nofix  0.7189  0.6951  0.7011
+wnet_pivae_fix     -0.0112 -0.0706 -0.1210
+wnet_pivae_nofix   -0.0822 -0.0976 -0.1039
+xgb                 0.7398  0.7162  0.7657
+
+================ NEE RMSE (mean over seeds) ================
+k                       1      2      4
+method                                 
+ae                 1.2823 1.2425 1.1828
+inc_nonresidual    1.5406 1.5575 1.5840
+inc_reg            1.5120 1.5432 1.5810
+inc_residual       1.5155 1.5486 1.5968
+rf                 1.3319 1.3219 1.1999
+vae                1.5370 1.4502 1.8347
+wnet_piae_fix      1.5620 2.3192 2.3113
+wnet_piae_nofix    1.4192 1.4843 1.4669
+wnet_piaereg_fix   1.5793 1.4429 1.7764
+wnet_piaereg_nofix 1.4283 1.4387 1.3877
+wnet_pivae_fix     2.7151 2.7123 2.7085
+wnet_pivae_nofix   2.8232 2.7477 2.6880
+xgb                1.3847 1.3975 1.2384
+
+wrote:
+  /home/cognitia/Desktop/Work/PhD/WienerNet/outputs/dt_sweep/comparison_long.csv
+  /home/cognitia/Desktop/Work/PhD/WienerNet/outputs/dt_sweep/comparison_summary.csv
+  /home/cognitia/Desktop/Work/PhD/WienerNet/outputs/dt_sweep/comparison_r2_pivot.csv

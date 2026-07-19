@@ -1,0 +1,15 @@
+sweep: EPOCHS=1  KS=[1]  SEEDS=[0]  -> outputs/dt_sweep_smoke
+OK   wnet_piae_nofix k1 s0
+OK   wnet_piae_fix k1 s0
+OK   wnet_piaereg_nofix k1 s0
+OK   wnet_piaereg_fix k1 s0
+OK   wnet_pivae_nofix k1 s0
+OK   wnet_pivae_fix k1 s0
+OK   ae k1 s0
+OK   vae k1 s0
+OK   inc_residual k1 s0
+OK   inc_nonresidual k1 s0
+OK   inc_reg k1 s0
+OK   rf k1 s0
+OK   xgb k1 s0
+SWEEP DONE
