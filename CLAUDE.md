@@ -109,6 +109,41 @@ python -m data_pipeline.cli all --site rosedene --strategy column   # full Rosed
   checkpoints weight-load directly (except VAE which renamed fc_mu→latent_mu).
 - **Tests are mandatory before merging refactors.** Run pytest first.
 
+## Plot generation conventions
+
+These apply to **every** plot produced in this repo (analysis scripts, notebooks,
+figure builders). The target is always a print figure in a LaTeX manuscript.
+
+- **No titles.** Never call `plt.title()`, `ax.set_title()`, `plt.suptitle()`, or
+  any figure-level title. The LaTeX caption describes the figure; the image must
+  not repeat it. (Panel *letters* A/B/C are also out — LaTeX `subcaption` adds
+  them; see the one-file-per-plot rule below.)
+- **Always label axes with units.** e.g. `"Latency (ms)"`, `"Predicted flux Reco
+  (µmol m⁻² s⁻¹)"` — never a bare quantity name, never an unlabeled axis.
+- **Readable print fonts.** Axis labels, tick labels, and legends must stay legible
+  at column width — roughly **8–9 pt minimum after LaTeX scales the image down**.
+  Do not ship matplotlib's tiny defaults. Size the figure for its final placement
+  (a full-width figure shrunk into one column makes 10 pt text ~3 pt — too small).
+- **One plot per file.** Save each plot as its own standalone file. Do **not**
+  build combined multi-panel images (`plt.subplots(2,2)` merging separate
+  experiments, PIL compositing, etc.). Generate each panel separately and let
+  LaTeX `subfigure`/`subcaption` handle layout and panel labels.
+- **Vector by default.** Export **PDF or SVG** so it stays sharp when scaled. Use
+  PNG *only* when the plot has heavy rasterized content (dense scatter/heatmap),
+  and then at **≥300 DPI**. Embed editable fonts for PDF: `pdf.fonttype: 42`.
+- **Tight bounding box.** Always save with `bbox_inches="tight"` (no excess
+  whitespace around the plot).
+- **Consistent, colorblind-friendly palette.** Use a fixed palette across all plots
+  in the same paper (e.g. `tab10` or `viridis`) — never default random per-plot
+  colors. Keep line widths, marker sizes, and legend placement consistent across
+  plots that appear together.
+- **Descriptive, groupable filenames.** e.g. `fig3_latency_vs_load.pdf`,
+  `fig3_throughput_vs_load.pdf` — so related panels sort/reference together.
+- **Emit a draft caption per plot.** After saving `<name>.pdf` (or `.svg`/`.png`),
+  print a suggested 1–2 sentence caption to the console **and** write it to a
+  companion `<name>.txt` (e.g. `fig3_latency_vs_load.pdf` → `fig3_latency_vs_load.txt`)
+  describing what the plot shows and its key takeaway, for later editing in LaTeX.
+
 ## Known gotchas — read before debugging
 
 ### 1. NaN dropna requirement
