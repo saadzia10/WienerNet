@@ -37,7 +37,22 @@ checkpoints/
 # Generated notebook artifacts
 notebooks/manuscript_plots/
 notebooks/*_executed.ipynb
+notebooks/03_manuscript_plots.ipynb
+
+# Working docs / manuscript notes (kept local, not published)
+docs/
+
+# Rendered figure & report outputs under analysis/ (regenerate from the scripts,
+# which stay tracked alongside their .txt draft captions and .csv result tables)
+analysis/**/*.png
+analysis/**/*.pdf
+analysis/**/*.svg
+analysis/**/*.html
+
+# Sweep scratch space (driver scripts + stdout logs)
+scratchpad_sweep/
 
 # Local dev
 .vscode/
 *.local.yaml
+.claude/settings.local.json
