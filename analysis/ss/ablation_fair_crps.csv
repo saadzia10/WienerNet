@@ -1,0 +1,6 @@
+architecture,Gaussian,beta-NLL,Student-t,ALD,mixture
+WienerNet-SS,1.206±1.722,—,0.752±0.134,0.783±0.145,0.793±0.149
+Neural SDE,4.527±11.950,—,3.402±6.706,1.944±2.947,—
+mean-variance,2.099±3.388,—,2.478±4.564,1.197±1.513,—
+Analytical SDE,0.751±0.099,—,0.712±0.156,—,—
+MDN,—,—,—,—,0.879±0.334

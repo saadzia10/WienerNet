@@ -37,6 +37,8 @@ from pathlib import Path
 import evaluate as ev
 from wienernet.data import build_dataloaders
 from wienernet.utils import load_model_weights
+from wienernet.evaluation import crps_ensemble
+from wienernet.baselines import RandomForestBaseline, XGBoostBaseline
 from structural import structural_sigma
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -44,25 +46,58 @@ SITES = ["woodwalton", "rosedene", "redmere_1", "redmere_2", "great_fen"]
 BINS = [("h0-2", lambda s: s < 4), ("h2-5", lambda s: (s >= 4) & (s < 10)), ("h5+", lambda s: s >= 10)]
 
 
+_BUNDLE_CACHE = {}
+
+# When set (via --prefer-root), a run of the same basename under this root wins over the
+# canonical location. Used to score the LR-fixed seed-42 re-runs (outputs/ss_lrfix) while
+# silently falling back to the original run for arms that were not re-trained
+# (Analytical SDE, RF/XGB -- no LR schedule to fix).
+PREFER_ROOT: str | None = None
+# Which checkpoint the rollout loads. 'last' is the honest default: with data.val_frac unset the
+# val monitor IS the held-out test site, so 'best' is the epoch selected ON the test site and any
+# score from it is an optimistic, test-selected bound rather than an estimate of real skill.
+CHECKPOINT: str = "last"
+
+
+def _resolve(path: str) -> str:
+    if PREFER_ROOT:
+        alt = os.path.join(PREFER_ROOT, os.path.basename(path))
+        if os.path.isdir(alt):
+            return alt
+    return path
+
+
+def _get_bundle(cfg):
+    """Build (or reuse) the leave-one-site-out dataloader bundle. Cached per (holdout_site, drivers):
+    every model rolled out for a given held-out site shares the same test set / train sites, so we
+    build the data once per site rather than once per model — the dataloader build is the cost
+    bottleneck when many models (all likelihood arms + matched-loss baselines) are rolled out."""
+    key = (str(cfg.data.get("holdout_site")), tuple(cfg.data.drivers))
+    if key not in _BUNDLE_CACHE:
+        _BUNDLE_CACHE.clear()   # site-major loop -> keep one bundle (bounds RAM across parallel seeds)
+        _BUNDLE_CACHE[key] = build_dataloaders(
+            site_paths={k: v for k, v in OmegaConf.to_container(cfg.data.site_paths, resolve=True).items()},
+            drivers=tuple(cfg.data.drivers), include_sites=tuple(cfg.data.include_sites) or None,
+            exclude_sites=tuple(cfg.data.exclude_sites), nighttime_only=bool(cfg.data.nighttime_only),
+            night_radiation_threshold=float(cfg.data.night_radiation_threshold),
+            nee_target_column=str(cfg.data.nee_target_column), boundary_nee_column=str(cfg.data.boundary_nee_column),
+            e0_column=str(cfg.data.e0_column), rb_column=str(cfg.data.rb_column),
+            temperature_column=str(cfg.data.temperature_column), dtemp_column=str(cfg.data.dtemp_column),
+            dnee_column=str(cfg.data.dnee_column), split_strategy=str(cfg.data.split_strategy),
+            test_frac=float(cfg.data.test_frac), test_years=tuple(cfg.data.test_years),
+            holdout_site=cfg.data.get("holdout_site"), shuffle_split=bool(cfg.data.shuffle_split),
+            split_random_state=int(cfg.data.split_random_state), time_step_k=cfg.data.get("time_step_k"),
+            batch_size=4096, save_scaler_path=None, save_dataframes=True,
+        )
+    return _BUNDLE_CACHE[key]
+
+
 def load_torch(run_dir, want_struct=False):
     run_dir = Path(run_dir)
     cfg = ev._load_resolved_config(run_dir)
-    bundle = build_dataloaders(
-        site_paths={k: v for k, v in OmegaConf.to_container(cfg.data.site_paths, resolve=True).items()},
-        drivers=tuple(cfg.data.drivers), include_sites=tuple(cfg.data.include_sites) or None,
-        exclude_sites=tuple(cfg.data.exclude_sites), nighttime_only=bool(cfg.data.nighttime_only),
-        night_radiation_threshold=float(cfg.data.night_radiation_threshold),
-        nee_target_column=str(cfg.data.nee_target_column), boundary_nee_column=str(cfg.data.boundary_nee_column),
-        e0_column=str(cfg.data.e0_column), rb_column=str(cfg.data.rb_column),
-        temperature_column=str(cfg.data.temperature_column), dtemp_column=str(cfg.data.dtemp_column),
-        dnee_column=str(cfg.data.dnee_column), split_strategy=str(cfg.data.split_strategy),
-        test_frac=float(cfg.data.test_frac), test_years=tuple(cfg.data.test_years),
-        holdout_site=cfg.data.get("holdout_site"), shuffle_split=bool(cfg.data.shuffle_split),
-        split_random_state=int(cfg.data.split_random_state), time_step_k=cfg.data.get("time_step_k"),
-        batch_size=4096, save_scaler_path=None, save_dataframes=True,
-    )
+    bundle = _get_bundle(cfg)
     model = ev._rebuild_any_model(cfg, feature_dim=bundle.feature_dim, device=DEVICE)
-    load_model_weights(run_dir / "checkpoints" / "last.pth", model, map_location=DEVICE)
+    load_model_weights(run_dir / "checkpoints" / f"{CHECKPOINT}.pth", model, map_location=DEVICE)
     model.eval()
     ds = bundle.test_df.reset_index(drop=True)
     night = (pd.to_datetime(ds["DateTime"]).diff().dt.total_seconds() / 60 != 30).cumsum().values
@@ -94,7 +129,7 @@ def rollout_torch(model, ds, night, sigma_struct=0.0, M=100, min_len=6, max_nigh
     rng = np.random.default_rng(seed)
     if len(groups) > max_nights:
         groups = [groups[i] for i in rng.choice(len(groups), max_nights, replace=False)]
-    det_err, cov_raw, cov_fix, steps = [], [], [], []
+    det_err, steps, obs_all, mem_raw, mem_fix = [], [], [], [], []
     for g in groups:
         det = ds.bNEE[g[0]].item()
         ens = torch.full((M,), ds.bNEE[g[0]].item(), device=DEVICE)
@@ -111,43 +146,103 @@ def rollout_torch(model, ds, night, sigma_struct=0.0, M=100, min_len=6, max_nigh
                              dT_diurnal=ds.dT_diurnal[i:i+1].to(DEVICE) if ds.dT_diurnal is not None else None)
             det_next = mean_out["nee_mean"].item()
             obs = ds.NEE[i].item()
-            det_err.append((det_next - obs) ** 2); steps.append(j)
-            lo, hi = torch.quantile(pred, 0.05).item(), torch.quantile(pred, 0.95).item()
-            cov_raw.append(1.0 if lo <= obs <= hi else 0.0)
+            det_err.append((det_next - obs) ** 2); steps.append(j); obs_all.append(obs)
+            mem_raw.append(pred.cpu().numpy())               # ensemble members -> full gap distribution
             if offset is not None:
-                pf = pred + offset
-                lo2, hi2 = torch.quantile(pf, 0.05).item(), torch.quantile(pf, 0.95).item()
-                cov_fix.append(1.0 if lo2 <= obs <= hi2 else 0.0)
+                mem_fix.append((pred + offset).cpu().numpy())
             ens = pred; det = det_next
-    det_err, cov_raw, steps = map(np.array, (det_err, cov_raw, steps))
-    cov_fix = np.array(cov_fix) if cov_fix else None
+    det_err, steps = np.asarray(det_err), np.asarray(steps)
+    obs_all, mem_raw = np.asarray(obs_all), np.asarray(mem_raw)     # (N,), (N, M)
+    mem_fix = np.asarray(mem_fix) if mem_fix else None
+
+    def _dist(mem):
+        """Full distributional scores from an (N,M) gap ensemble vs obs: CRPS, coverage@{50,90,95},
+        sharpness (90% width), and rank PIT — the Stage-1 battery applied to the rollout."""
+        q = np.quantile(mem, [0.025, 0.05, 0.25, 0.75, 0.95, 0.975], axis=1)   # (6, N)
+        return dict(crps=crps_ensemble(obs_all, mem),
+                    cov50=((obs_all >= q[2]) & (obs_all <= q[3])).astype(float),
+                    cov90=((obs_all >= q[1]) & (obs_all <= q[4])).astype(float),
+                    cov95=((obs_all >= q[0]) & (obs_all <= q[5])).astype(float),
+                    sharp=(q[4] - q[1]), pit=(mem < obs_all[:, None]).mean(axis=1))
+
+    def _pit_ks(p):     # KS distance of the PIT from Uniform(0,1); 0 = perfectly calibrated
+        p = np.sort(p); n = len(p)
+        return float(np.max(np.abs((np.arange(1, n + 1) / n) - p))) if n else float("nan")
+
     binned = lambda vals, fn: {lab: fn(vals[m(steps)]) for lab, m in BINS if m(steps).any()}
-    r = dict(rmse=binned(det_err, lambda v: float(np.sqrt(v.mean()))),
-             cov_raw=binned(cov_raw, lambda v: float(v.mean())), n_nights=len(groups))
-    if cov_fix is not None:
-        r["cov_fix"] = binned(cov_fix, lambda v: float(v.mean()))
+    mean_ = lambda v: float(np.mean(v))
+    r = dict(rmse=binned(det_err, lambda v: float(np.sqrt(v.mean()))), n_nights=len(groups))
+    for tag, mem in (("raw", mem_raw), ("fix", mem_fix)):
+        if mem is None:
+            continue
+        d = _dist(mem)
+        r[f"crps_{tag}"] = binned(d["crps"], mean_)
+        r[f"cov_{tag}"] = binned(d["cov90"], mean_)          # 90% (headline; back-compatible key)
+        r[f"cov50_{tag}"] = binned(d["cov50"], mean_)
+        r[f"cov95_{tag}"] = binned(d["cov95"], mean_)
+        r[f"sharp_{tag}"] = binned(d["sharp"], mean_)
+        r[f"pitks_{tag}"] = binned(d["pit"], _pit_ks)
     return r
 
 
-def rollout_tree(run_dir, night_ref_df):
-    """Tree = driver-only: forecast is the stored per-row pred_nee, aligned by DateTime to the
-    same test rows. RMSE binned by hours-into-gap (flat by construction; no band)."""
-    p = os.path.join(run_dir, "predictions.parquet")
-    if not os.path.exists(p):
+def rollout_tree(run_dir, night_ref_df=None, min_len=6, max_nights=200, seed=0):
+    """TRUE autoregressive gap-fill for a tree baseline — same protocol as `rollout_torch`.
+
+    The trees take the current flux `bNEE` as a feature (importance ~0.73 for RF), so they can only
+    be run through a gap by feeding each prediction back as the next step's input. That is what this
+    does: anchor once on the observed NEE at the gap edge, then propagate. Observed DRIVERS are
+    refreshed every step (they remain available during a gap); only NEE is unobserved and therefore
+    self-supplied.
+
+    The previous implementation instead re-binned the stored one-step `pred_nee` column, which had
+    been produced with the TRUE NEE_t at every row. That is teacher forcing, not a rollout: it gave
+    the trees observations the other models were denied, produced error that was flat in gap-time
+    (a real rollout must compound), and scored worse than trivial persistence. Those numbers were
+    not gap-filling results and are not comparable to anything else in Stage 2.
+
+    Point predictors -> RMSE only; no ensemble, hence no CRPS/coverage/PIT.
+    """
+    run_dir = Path(run_dir)
+    cfg = ev._load_resolved_config(run_dir)
+    bundle = _get_bundle(cfg)
+    ckpt = run_dir / "checkpoints" / "model.joblib"
+    if not ckpt.exists():
         return None
-    w = pd.read_parquet(p)
-    if not {"pred_nee", "gt_nee", "DateTime"}.issubset(w.columns):
-        return None
-    w = w[["DateTime", "pred_nee", "gt_nee"]].copy()
-    w["DateTime"] = pd.to_datetime(w["DateTime"])
-    ref = night_ref_df.copy(); ref["DateTime"] = pd.to_datetime(ref["DateTime"])
-    m = ref.merge(w, on="DateTime", how="inner")
-    if len(m) < 50:
-        return None
-    steps = m["step"].values
-    err = (m["pred_nee"].values - m["gt_nee"].values) ** 2
+    variant = str(cfg.get("model", {}).get("variant", "")).lower()
+    if "xgb" in variant or "xgb" in run_dir.name:
+        model = XGBoostBaseline.load(ckpt)
+    else:
+        model = RandomForestBaseline.load(ckpt)
+
+    ds = bundle.test_dataset
+    X = ds.X.numpy(); bnee = ds.bNEE.numpy().reshape(-1); k = ds.k.numpy(); obs = ds.NEE.numpy()
+    dtv = pd.to_datetime(bundle.test_df["DateTime"])
+    night = (dtv.diff().dt.total_seconds() / 60 != 30).cumsum().values
+
+    groups = [np.where(night == nid)[0] for nid in np.unique(night)]
+    groups = [g for g in groups if len(g) >= min_len]
+    rng = np.random.default_rng(seed)
+    if len(groups) > max_nights:
+        groups = [groups[i] for i in rng.choice(len(groups), max_nights, replace=False)]
+
+    # Nights are independent, so the rollout is vectorised ACROSS nights: at step j we advance every
+    # still-active night in ONE predict() call. Sequential within a night (as it must be), batched
+    # over nights -- ~40 batched calls instead of ~3000 single-row ones against a 350 MB forest.
+    cur = np.array([bnee[g[0]] for g in groups], dtype=float)     # per-night running state
+    err, steps = [], []
+    for j in range(max(len(g) for g in groups)):
+        act = np.array([gi for gi, g in enumerate(groups) if j < len(g)])
+        if not len(act):
+            break
+        rows = np.array([groups[gi][j] for gi in act])
+        feat = np.concatenate([X[rows], cur[act, None], k[rows]], axis=1)
+        pred = np.asarray(model.predict(feat), dtype=float).reshape(-1)
+        err.extend((pred - obs[rows].astype(float)) ** 2)
+        steps.extend([j] * len(act))
+        cur[act] = pred                              # <- feed the prediction forward
+    err, steps = np.asarray(err), np.asarray(steps)
     binned = {lab: float(np.sqrt(err[msk(steps)].mean())) for lab, msk in BINS if msk(steps).any()}
-    return dict(rmse=binned, cov_raw={}, n_nights=int(ref["night"].nunique()))
+    return dict(rmse=binned, cov_raw={}, n_nights=len(groups))
 
 
 def night_ref(test_df):
@@ -159,20 +254,61 @@ def night_ref(test_df):
     return d
 
 
-def main():
+def write_gap_summary(df, out):
+    """Manuscript-ready aggregate: all methods x {all 5, clean 4} x horizon, RMSE / CRPS (raw+fix) /
+    coverage (raw+fix). Derived from the per-site ar_gapfill_loso rows."""
+    HS = ["h0-2", "h2-5", "h5+"]
+    METRICS = ["rmse", "crpsraw", "crpsfix", "covraw", "covfix", "cov50raw", "cov50fix",
+               "cov95raw", "cov95fix", "sharpraw", "sharpfix", "pitksraw", "pitksfix"]
+    rows = []
+    for scope, frame in [("all5", df), ("clean4", df[df.site != "redmere_1"])]:
+        for name, gdf in frame.groupby("model", sort=False):
+            rec = {"scope": scope, "model": name}
+            for m in METRICS:
+                for h in HS:
+                    col = f"{m}_{h}"
+                    ok = col in gdf.columns and gdf[col].notna().any()
+                    rec[col] = round(float(gdf[col].mean()), 3) if ok else ""
+            rows.append(rec)
+    pd.DataFrame(rows).to_csv(os.path.join(out, "gap_crps_summary.csv"), index=False)
+
+
+def main(seed=0):
     LOSO = os.path.join(ROOT, "outputs", "ss_loso")
     FL = os.path.join(ROOT, "outputs", "final_loso")
+    print(f"### AR gap-fill sweep — seed {seed}, device {DEVICE} ###")
 
     def paths(site):
         return [
-            ("WN-SS (learned-diurnal, Wiener)", os.path.join(LOSO, f"{site}_s0_ldiur_wien"), "torch_struct"),
-            ("WienerNet-SS (state-space)", os.path.join(LOSO, f"{site}_s0_diur_ss"), "torch_struct"),
-            ("WienerNet-SS (Wiener)",      os.path.join(LOSO, f"{site}_s0_diur_wien"), "torch"),
-            ("MDN (no physics)",           os.path.join(FL, f"comp_mdn_{site}_s0"), "torch"),
-            ("Neural SDE",                 os.path.join(FL, f"comp_neuralsde_{site}_s0"), "torch"),
-            ("Analytical SDE",             os.path.join(FL, f"prior_analytical_{site}_s0"), "torch"),
-            ("Random Forest",              os.path.join(FL, f"comp_rf_{site}_s0"), "tree"),
-            ("XGBoost",                    os.path.join(FL, f"comp_xgb_{site}_s0"), "tree"),
+            # --- WienerNet-SS likelihood axis (manuscript ablation): learned-diurnal, single-Wiener,
+            #     GT-k, residual OFF; only the likelihood family changes. ALD is the primary and keeps
+            #     the +sigma_struct band (torch_struct -> covFIX/crpsFIX); the rest use the raw band. ---
+            ("WN-SS (ALD)",        os.path.join(LOSO, f"{site}_s{seed}_ldiur_wien"), "torch_struct"),
+            ("WN-SS (Gaussian)",   os.path.join(LOSO, f"{site}_s{seed}_ldiur_wien_gauss"), "torch"),
+            ("WN-SS (beta-NLL)",   os.path.join(LOSO, f"{site}_s{seed}_ldiur_wien_beta"), "torch"),
+            ("WN-SS (Student-t)",  os.path.join(LOSO, f"{site}_s{seed}_ldiur_wien_studt"), "torch"),
+            ("WN-SS (mixture)",    os.path.join(LOSO, f"{site}_s{seed}_ldiur_wien_mix"), "torch"),
+            # --- other WN-SS arms: residual on/off, parameter head, given-diurnal ---
+            ("WN-SS (+residual)",            os.path.join(LOSO, f"{site}_s{seed}_ldiur_res_wien"), "torch"),
+            ("WN-SS (predicted-k)",          os.path.join(LOSO, f"{site}_s{seed}_ldiur_wien_predk"), "torch"),
+            # --- state-space noise law: matched partner of each single-Wiener arm above (ALD only) ---
+            ("WN-SS (state-space)",                os.path.join(LOSO, f"{site}_s{seed}_ldiur_ss"), "torch"),
+            ("WN-SS (state-space, +residual)",     os.path.join(LOSO, f"{site}_s{seed}_ldiur_res_ss"), "torch"),
+            ("WN-SS (state-space, predicted-k)",   os.path.join(LOSO, f"{site}_s{seed}_ldiur_ss_predk"), "torch"),
+            ("WN-SS (given-diurnal, st-sp)", os.path.join(LOSO, f"{site}_s{seed}_diur_ss"), "torch_struct"),
+            ("WN-SS (given-diurnal, Wiener)",os.path.join(LOSO, f"{site}_s{seed}_diur_wien"), "torch"),
+            # --- baselines at their manuscript likelihoods (matched-loss gap comparison) ---
+            ("Neural SDE (Gaussian)",  os.path.join(FL, f"comp_neuralsde_{site}_s{seed}"), "torch"),
+            ("Neural SDE (Student-t)", os.path.join(LOSO, f"{site}_s{seed}_base_nsde_studt"), "torch"),
+            ("Neural SDE (ALD)",       os.path.join(LOSO, f"{site}_s{seed}_base_nsde_ald"), "torch"),
+            ("mean-var (Gaussian)",    os.path.join(FL, f"comp_meanvar_{site}_s{seed}"), "torch"),
+            ("mean-var (Student-t)",   os.path.join(LOSO, f"{site}_s{seed}_base_mv_studt"), "torch"),
+            ("mean-var (ALD)",         os.path.join(LOSO, f"{site}_s{seed}_base_mv_ald"), "torch"),
+            ("Analytical (Gaussian)",  os.path.join(FL, f"prior_analytical_{site}_s{seed}"), "torch"),
+            ("Analytical (Student-t)", os.path.join(LOSO, f"{site}_s{seed}_base_analyt_studt"), "torch"),
+            ("MDN (mixture)",          os.path.join(FL, f"comp_mdn_{site}_s{seed}"), "torch"),
+            ("Random Forest",          os.path.join(FL, f"comp_rf_{site}_s{seed}"), "tree"),
+            ("XGBoost",                os.path.join(FL, f"comp_xgb_{site}_s{seed}"), "tree"),
         ]
 
     rows = []
@@ -182,6 +318,7 @@ def main():
         # a reference night frame for tree alignment (from any torch run of this site)
         ref = None
         for name, run, kind in paths(site):
+            run = _resolve(run)
             if not os.path.isdir(run):
                 print(f"{name:<28}  (missing)"); continue
             try:
@@ -202,23 +339,50 @@ def main():
                 print(f"{name:<28}{g(rm,'h0-2'):>10.2f}{g(rm,'h2-5'):>7.2f}{g(rm,'h5+'):>7.2f}"
                       f"{g(cr,'h0-2'):>12.2f}{g(cr,'h2-5'):>7.2f}{g(cr,'h5+'):>7.2f}"
                       f"{g(cf,'h0-2'):>12.2f}{g(cf,'h2-5'):>7.2f}{g(cf,'h5+'):>7.2f}")
-                rows.append(dict(site=site, model=name, **{f"rmse_{k}": g(rm, k) for k in ("h0-2", "h2-5", "h5+")},
-                                 **{f"covraw_{k}": g(cr, k) for k in ("h0-2", "h2-5", "h5+")},
-                                 **{f"covfix_{k}": g(cf, k) for k in ("h0-2", "h2-5", "h5+")}))
+                mtab = {"rmse": rm, "covraw": cr, "covfix": cf,
+                        "crpsraw": r.get("crps_raw", {}), "crpsfix": r.get("crps_fix", {}),
+                        "pitksraw": r.get("pitks_raw", {}), "pitksfix": r.get("pitks_fix", {}),
+                        "cov50raw": r.get("cov50_raw", {}), "cov50fix": r.get("cov50_fix", {}),
+                        "cov95raw": r.get("cov95_raw", {}), "cov95fix": r.get("cov95_fix", {}),
+                        "sharpraw": r.get("sharp_raw", {}), "sharpfix": r.get("sharp_fix", {})}
+                row = {"site": site, "seed": seed, "model": name}
+                for mk, md in mtab.items():
+                    for h in ("h0-2", "h2-5", "h5+"):
+                        row[f"{mk}_{h}"] = g(md, h)
+                rows.append(row)
             except Exception as e:
                 import traceback; traceback.print_exc(); print(f"{name}: ERROR {e}")
 
-    # cross-site aggregate + CSV
+    # per-seed CSV; `--merge` concatenates the seeds and writes the pooled summary
     if rows:
         out = os.path.join(ROOT, "analysis", "ss")
         df = pd.DataFrame(rows)
-        df.to_csv(os.path.join(out, "ar_gapfill_loso.csv"), index=False)
-        print("\n===== CROSS-SITE MEAN (over sites) =====")
-        print(f"{'model':<28}{'RMSE h0-2':>10}{'h2-5':>7}{'h5+':>7}{'covFIX h5+':>12}")
+        target = os.path.join(out, f"ar_gapfill_s{seed}.csv")
+        df.to_csv(target, index=False)
+        print(f"\n===== seed {seed}: CROSS-SITE MEAN (over sites) =====")
+        print(f"{'model':<28}{'RMSE h0-2':>10}{'h2-5':>7}{'h5+':>7}{'CRPS h5+':>10}{'PITks h5+':>11}")
         for name, gdf in df.groupby("model", sort=False):
-            print(f"{name:<28}{gdf['rmse_h0-2'].mean():>10.2f}{gdf['rmse_h2-5'].mean():>7.2f}"
-                  f"{gdf['rmse_h5+'].mean():>7.2f}{gdf['covfix_h5+'].mean():>12.2f}")
-        print("\nwrote", os.path.join(out, "ar_gapfill_loso.csv"))
+            gv = lambda c: gdf[c].mean() if c in gdf.columns else float("nan")
+            print(f"{name:<28}{gv('rmse_h0-2'):>10.2f}{gv('rmse_h2-5'):>7.2f}{gv('rmse_h5+'):>7.2f}"
+                  f"{gv('crpsraw_h5+'):>10.3f}{gv('pitksraw_h5+'):>11.3f}")
+        print("\nwrote", target)
+
+
+def merge_seeds():
+    """Concatenate every per-seed ar_gapfill_s*.csv into ar_gapfill_loso.csv and write the pooled
+    gap_crps_summary.csv (aggregating over site AND seed)."""
+    import glob
+    out = os.path.join(ROOT, "analysis", "ss")
+    parts = sorted(glob.glob(os.path.join(out, "ar_gapfill_s*.csv")))
+    if not parts:
+        print("no per-seed CSVs to merge"); return
+    df = pd.concat([pd.read_csv(p) for p in parts], ignore_index=True)
+    df.to_csv(os.path.join(out, "ar_gapfill_loso.csv"), index=False)
+    write_gap_summary(df, out)
+    n_seed = df["seed"].nunique() if "seed" in df.columns else 1
+    print(f"merged {len(parts)} seed files -> ar_gapfill_loso.csv "
+          f"({len(df)} rows, {df['model'].nunique()} models x {df['site'].nunique()} sites x {n_seed} seeds)")
+    print("wrote gap_crps_summary.csv")
 
 
 def _ref_from_run(run):
@@ -232,4 +396,25 @@ def _ref_from_run(run):
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--seed", type=int, default=0, help="training seed of the runs to roll out")
+    ap.add_argument("--merge", action="store_true", help="merge per-seed CSVs + write the summary")
+    ap.add_argument("--cpu-ok", action="store_true", help="allow CPU (default: require CUDA)")
+    ap.add_argument("--checkpoint", choices=["best", "last"], default="last",
+                    help="which checkpoint to roll out; 'best' is TEST-SELECTED here (see module note)")
+    ap.add_argument("--prefer-root", default=None,
+                    help="prefer same-named runs under this root (e.g. outputs/ss_lrfix)")
+    a = ap.parse_args()
+    CHECKPOINT = a.checkpoint
+    if CHECKPOINT != "last":
+        print(f"### rolling out {CHECKPOINT}.pth — TEST-SELECTED checkpoint, optimistic bound ###")
+    if a.prefer_root:
+        PREFER_ROOT = os.path.abspath(a.prefer_root)
+        print(f"### preferring runs under {PREFER_ROOT} where they exist ###")
+    if a.merge:
+        merge_seeds()
+    else:
+        if DEVICE != "cuda" and not a.cpu_ok:
+            raise SystemExit("CUDA not available — rerun with --cpu-ok to allow CPU (much slower).")
+        main(seed=a.seed)
