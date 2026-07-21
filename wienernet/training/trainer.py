@@ -60,6 +60,7 @@ class Trainer:
         optimizer: Optimizer,
         *,
         scheduler: Any = None,
+        scheduler_monitor: str = "val",
         loss_weights: Mapping[str, float] | None = None,
         mmd_loss_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor] | None = None,
         noise_prior_fn: Callable[[torch.Tensor], torch.Tensor] | None = None,
@@ -74,6 +75,12 @@ class Trainer:
         self.model = model
         self.optimizer = optimizer
         self.scheduler = scheduler
+        # Which loss a metric-driven (plateau) scheduler reacts to. 'train' keeps the LR
+        # schedule entirely free of held-out data — the leakage-safe option when the val
+        # monitor is the test loader. 'val' reproduces the historical behaviour.
+        self.scheduler_monitor = str(scheduler_monitor).lower()
+        if self.scheduler_monitor not in ("val", "train"):
+            raise ValueError(f"scheduler_monitor must be 'val' or 'train', got {scheduler_monitor!r}")
         self.loss_weights = dict(loss_weights or {})
         self.target_scales = dict(target_scales) if target_scales else None
         self.likelihood = dict(likelihood) if likelihood else None
@@ -155,10 +162,15 @@ class Trainer:
                 )
 
             if self.scheduler is not None:
-                # ReduceLROnPlateau needs a metric; cosine-style schedulers don't.
-                try:
-                    self.scheduler.step(val_loss)
-                except TypeError:
+                # Dispatch on TYPE, not on an exception. Only plateau schedulers take a metric;
+                # epoch-based ones (e.g. cosine) accept a positional arg as `epoch`, so the old
+                # `try: step(val_loss) / except TypeError: step()` did NOT raise for them — it
+                # silently passed the loss as the epoch number and corrupted the schedule.
+                if isinstance(self.scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                    # monitor='train' keeps the LR schedule free of ANY held-out data.
+                    self.scheduler.step(train_metrics["loss"]
+                                        if self.scheduler_monitor == "train" else val_loss)
+                else:
                     self.scheduler.step()
 
         return dict(history)
@@ -415,14 +427,30 @@ def build_scheduler(
     name: str = "reduce_on_plateau",
     **kwargs,
 ) -> Any:
-    """Build the LR scheduler. Default matches original notebook setup."""
+    """Build the LR scheduler. Default matches original notebook setup.
+
+    Only the keys a given scheduler actually accepts are forwarded. The caller passes the
+    *union* of scheduler options (patience/factor/mode/t_max/eta_min), so forwarding **kwargs
+    blindly made `cosine` raise `TypeError: unexpected keyword argument 'patience'` — i.e. the
+    cosine option was unusable. Filtering here keeps every option selectable from config.
+    """
     name = name.lower()
     if name == "reduce_on_plateau":
-        defaults = {"mode": "min", "patience": 10, "factor": 0.5}
-        defaults.update(kwargs)
-        return torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, **defaults)
+        return torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            mode=str(kwargs.get("mode", "min")),
+            patience=int(kwargs.get("patience", 10)),
+            factor=float(kwargs.get("factor", 0.5)),
+        )
     if name == "cosine":
-        return torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, **kwargs)
+        t_max = int(kwargs.get("t_max") or 0)
+        if t_max <= 0:
+            raise ValueError("scheduler 'cosine' needs training.scheduler.t_max > 0 "
+                             "(typically training.num_epochs)")
+        opts: dict[str, Any] = {"T_max": t_max}
+        if kwargs.get("eta_min") is not None:
+            opts["eta_min"] = float(kwargs["eta_min"])
+        return torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, **opts)
     if name == "none":
         return None
     raise ValueError(f"Unknown scheduler {name!r}")

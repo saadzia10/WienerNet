@@ -20,3 +20,7 @@ decoder_dims: [16, 16]
 activation: relu
 
 dt: 30.0
+
+# Soft bound on the drift rate (c*tanh(rate/c)), mirroring piae_increment's drift_clamp.
+# null = unbounded (original behaviour). Set to 1.0 for the clamp-controlled comparison.
+drift_clamp: null

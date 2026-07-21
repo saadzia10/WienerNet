@@ -25,8 +25,8 @@ probabilistic + process-consistency + calibration evaluation suite with no
 special-casing — the fair, matched-capacity, identically-scored comparison the
 manuscript needs.
 
-Fairness (shared): same drivers, same chronological split, same normalisation,
-same one-step NEE_{t+1} target and scale, same Euler step where applicable, each
+Fairness (shared): same drivers, same leave-one-site-out (held-out-site) split, same
+normalisation, same one-step NEE_{t+1} target and scale, same Euler step where applicable, each
 emits a predictive distribution scored by CRPS/NLL/PIT/coverage, the neural ones
 trained with the same likelihood objective, capacity matched to the main model.
 """
@@ -41,9 +41,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
-from ..losses.likelihood import student_t_dof
+from ..losses.likelihood import LOG_KAPPA_MAX, LOG_KAPPA_MIN, student_t_dof
 from ..physics.lloyd_taylor import DEFAULT_T0, DEFAULT_TREF, sde_drift
-from .components import build_mlp, build_mlp_with_head, draw_unit_noise, initialize_weights
+from .components import (
+    build_mlp,
+    build_mlp_with_head,
+    draw_unit_noise,
+    initialize_weights,
+    sample_ald_noise,
+)
 from .wienernet import InputsConfig, _resolve_activation
 
 # Minimum diffusion scale so sigma stays strictly positive and log(sigma) finite
@@ -320,6 +326,10 @@ class HeteroscedasticMLPConfig:
     activation: str = "relu"
     mixture_components: int = 1                  # 1 = mean-variance; >1 = MDN
     noise_student_dof: bool = False             # Student-t components (adds log_nu)
+    noise_asymmetry: bool = False               # asymmetric-Laplace (ALD) noise for the mean-var
+                                                # (K=1) head — adds a learnable log_kappa. Ignored
+                                                # for the mixture (K>1) head. Matches the full model's
+                                                # ALD option so the baseline can train on the SAME loss.
     inputs: InputsConfig = field(default_factory=InputsConfig)   # unused; uniform builder
     dt: float = 30.0                            # unused (no SDE); kept for a uniform builder
     device: str = "cpu"
@@ -370,6 +380,11 @@ class HeteroscedasticMLPModel(nn.Module):
             nn.Parameter(torch.tensor(float(math.log(math.expm1(7.0)))))
             if cfg.noise_student_dof else None
         )
+        # Asymmetric-Laplace asymmetry for the mean-variance (K=1) head; None otherwise.
+        self.log_kappa = (
+            nn.Parameter(torch.tensor(0.0))
+            if (cfg.noise_asymmetry and K == 1) else None
+        )
         self.to(self._device)
 
     def forward(
@@ -398,7 +413,12 @@ class HeteroscedasticMLPModel(nn.Module):
         if K == 1:
             nee_mean = comp_means                          # (n, 1)
             nee_log_std = log_scales
-            nee_pred = nee_mean + draw_unit_noise((n, 1), device, nu) * scales
+            if self.log_kappa is not None:                 # asymmetric-Laplace sample
+                kappa = torch.exp(self.log_kappa.clamp(LOG_KAPPA_MIN, LOG_KAPPA_MAX)).detach()
+                eps = sample_ald_noise((n, 1), device, kappa)
+            else:
+                eps = draw_unit_noise((n, 1), device, nu)
+            nee_pred = nee_mean + eps * scales
             mix_means = mix_log_scales = mix_logits = None
         else:
             logits = self.logit_decoder(z)                 # (n, K)
@@ -437,6 +457,7 @@ class HeteroscedasticMLPModel(nn.Module):
             "nee_mean": nee_mean,
             "nee_log_std": nee_log_std,
             "log_nu": self.log_nu,
+            "log_kappa": self.log_kappa,        # ALD asymmetry (mean-var K=1 only; None otherwise)
             # mixture parameters for the mixture NLL (present only for K > 1)
             "mix_means": mix_means,
             "mix_log_scales": mix_log_scales,
@@ -469,6 +490,16 @@ class NeuralSDEConfig:
     decoder_dims: tuple[int, ...] = (16, 16)
     activation: str = "relu"
     noise_student_dof: bool = False             # Student-t noise (adds log_nu)
+    noise_asymmetry: bool = False               # asymmetric-Laplace (ALD) noise (adds log_kappa);
+                                                # matches the full model's ALD so the neural SDE can
+                                                # train on the SAME loss for the fair comparison.
+    # Soft bound on the drift RATE, mirroring WienerNetModel's `drift_clamp`: the rate is passed
+    # through c*tanh(rate/c) so an out-of-distribution encoder cannot drive an unbounded increment.
+    # DEFAULT None = the original unbounded behaviour, so every existing run and checkpoint is
+    # unchanged. Set to 1.0 to match the full model for a clamp-controlled comparison: without it
+    # the OOD contrast confounds "physics drift generalises" with "a bounded increment cannot
+    # explode", since only the full model was bounded.
+    drift_clamp: float | None = None
     inputs: InputsConfig = field(default_factory=InputsConfig)   # unused; uniform builder
     tref: float = DEFAULT_TREF                  # unused (no physics); uniform builder
     t0: float = DEFAULT_T0                      # unused (no physics); uniform builder
@@ -510,6 +541,7 @@ class NeuralSDEModel(nn.Module):
             nn.Parameter(torch.tensor(float(math.log(math.expm1(7.0)))))
             if cfg.noise_student_dof else None
         )
+        self.log_kappa = nn.Parameter(torch.tensor(0.0)) if cfg.noise_asymmetry else None
         self.to(self._device)
 
     def forward(
@@ -530,14 +562,22 @@ class NeuralSDEModel(nn.Module):
 
         z = self.encoder(x)
         drift = self.drift_decoder(z)                          # free neural drift RATE
+        if self.cfg.drift_clamp is not None:                   # same soft bound as the full model
+            c = float(self.cfg.drift_clamp)
+            drift = c * torch.tanh(drift / c)
         sigma = F.softplus(self.sigma_decoder(z)) + _SIGMA_FLOOR
 
         step_dt = (dt.view(-1, 1).to(device) if dt is not None
                    else torch.full((n, 1), float(self.cfg.dt), device=device))
         sqrt_dt = torch.sqrt(step_dt)
 
-        nu = student_t_dof(self.log_nu).detach() if self.log_nu is not None else None
-        noise = draw_unit_noise((n, 1), device, nu) * sigma    # zero-mean diffusion sample
+        if self.log_kappa is not None:                         # asymmetric-Laplace diffusion sample
+            kappa = torch.exp(self.log_kappa.clamp(LOG_KAPPA_MIN, LOG_KAPPA_MAX)).detach()
+            eps = sample_ald_noise((n, 1), device, kappa)
+        else:
+            nu = student_t_dof(self.log_nu).detach() if self.log_nu is not None else None
+            eps = draw_unit_noise((n, 1), device, nu)
+        noise = eps * sigma                                    # zero-mean diffusion sample
         det_increment = drift * step_dt
         dnee = det_increment + noise * sqrt_dt
         nee_pred = b + dnee
@@ -562,6 +602,7 @@ class NeuralSDEModel(nn.Module):
             "nee_mean": nee_mean,
             "nee_log_std": nee_log_std,
             "log_nu": self.log_nu,
+            "log_kappa": self.log_kappa,        # ALD asymmetry (None unless enabled)
             "bnee": None,
         }
 

@@ -230,6 +230,7 @@ def _rebuild_baseline_model(cfg: DictConfig, feature_dim: int, device: str):
             activation=str(cfg.model.get("activation", "relu")),
             mixture_components=int(cfg.model.get("mixture_components", default_k)),
             noise_student_dof=_student_dof(cfg),
+            noise_asymmetry=_asymmetry(cfg),
             device=device,
         )
         return HeteroscedasticMLPModel(model_cfg)
@@ -241,6 +242,7 @@ def _rebuild_baseline_model(cfg: DictConfig, feature_dim: int, device: str):
             decoder_dims=tuple(cfg.model.get("decoder_dims", [16, 16])),
             activation=str(cfg.model.get("activation", "relu")),
             noise_student_dof=_student_dof(cfg),
+            noise_asymmetry=_asymmetry(cfg),
             dt=float(cfg.model.get("dt", 30.0)),
             device=device,
         )

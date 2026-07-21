@@ -65,6 +65,13 @@ class DataBundle:
     # `wienernet.models.encoder_input_dim(feature_dim, inputs_cfg)` to size the
     # encoder when the input flags differ from the legacy all-on default.
     feature_dim: int = 0
+    # OPTIONAL held-out validation split carved from the TRAINING sites (enabled by
+    # `val_frac`). Used for early stopping / LR scheduling without touching the held-out
+    # test site. None when `val_frac` is unset -> callers fall back to the test loader,
+    # i.e. the historical behaviour is unchanged.
+    val_loader: DataLoader | None = None
+    val_dataset: ClimateDataset | None = None
+    val_df: pd.DataFrame | None = None
     # Train-only per-feature stats for standardising the optional GT encoder
     # inputs (k=(E0, rb) and dTa) when `inputs.scale_extra_inputs` is on. Fed to
     # the model via `WienerNetModel.set_input_norm_stats(...)`.
@@ -279,6 +286,8 @@ def build_dataloaders(
     holdout_site: str | None = None,
     train_subsample_frac: float | None = None,
     train_subsample_seed: int = 0,
+    val_frac: float | None = None,
+    val_split_seed: int = 0,
     shuffle_split: bool = False,
     split_random_state: int = 42,
     batch_size: int = 512,
@@ -376,10 +385,35 @@ def build_dataloaders(
         log.info("subsampled train to frac=%.4f: %d -> %d rows (seed=%d, nested)",
                  float(train_subsample_frac), n, m, train_subsample_seed)
 
+    # OPTIONAL validation split carved from the TRAINING sites.
+    # Grouped by (site, window_id) -- i.e. whole NIGHTS are held out, never rows -- because
+    # consecutive 30-min rows within a night are strongly autocorrelated and a row-level
+    # split would leak. This gives a genuine held-out signal for early stopping / LR
+    # scheduling WITHOUT touching the held-out test site (which would be test leakage).
+    val_df = None
+    if val_frac is not None and 0.0 < float(val_frac) < 1.0:
+        grp_cols = [c for c in ("site", "window_id") if c in train_df.columns]
+        if grp_cols:
+            groups = train_df[grp_cols].drop_duplicates()
+            n_val = max(1, int(round(len(groups) * float(val_frac))))
+            pick = groups.sample(n=n_val, random_state=val_split_seed)
+            mask = train_df[grp_cols].merge(pick.assign(_v=1), on=grp_cols, how="left")["_v"].notna().values
+        else:  # no night grouping available -> fall back to a row split
+            rng = np.random.default_rng(val_split_seed)
+            mask = rng.random(len(train_df)) < float(val_frac)
+        val_df = train_df[mask].reset_index(drop=True)
+        train_df = train_df[~mask].reset_index(drop=True)
+        log.info("val split (from TRAIN sites, grouped by %s): train=%d  val=%d (val_frac=%.3f)",
+                 grp_cols or "row", len(train_df), len(val_df), float(val_frac))
+
     # Feature scaling
     X_train, X_test, scaler, feature_cols = fit_scale_features(
         train_df, test_df, drivers=drivers,
     )
+    # Same fit (identical train_df) -> identical scaler; this just transforms the val rows.
+    X_val = None
+    if val_df is not None:
+        _, X_val, _, _ = fit_scale_features(train_df, val_df, drivers=drivers)
     log.info("feature matrix: train %s, test %s, cols=%d", X_train.shape, X_test.shape, len(feature_cols))
 
     if save_scaler_path is not None:
@@ -463,6 +497,26 @@ def build_dataloaders(
         site_ids=test_df["site"].tolist() if "site" in test_df.columns else None,
     )
 
+    # Optional validation dataset (mirrors the test path exactly, on train-site rows)
+    val_dataset = None
+    if val_df is not None and X_val is not None:
+        val_dt = (val_df[dt_column].values.astype(np.float32)
+                  if dt_column in val_df.columns else None)
+        val_dtd = (val_df["dTa_diurnal"].values.astype(np.float32)
+                   if "dTa_diurnal" in val_df.columns else None)
+        val_dataset = ClimateDataset(
+            X_val,
+            val_df[[e0_column, rb_column]].values.astype(np.float32),
+            val_df[temperature_column].values.astype(np.float32),
+            val_df[dnee_column].values.astype(np.float32),
+            val_df[boundary_nee_column].values.astype(np.float32),
+            val_df[dtemp_column].values.astype(np.float32),
+            val_df[nee_target_column].values.astype(np.float32),
+            dt=val_dt,
+            dT_diurnal=val_dtd,
+            site_ids=val_df["site"].tolist() if "site" in val_df.columns else None,
+        )
+
     # DataLoaders
     train_loader = DataLoader(
         train_dataset,
@@ -483,11 +537,26 @@ def build_dataloaders(
         persistent_workers=persistent_workers if num_workers > 0 else False,
     )
 
+    val_loader = None
+    if val_dataset is not None:
+        val_loader = DataLoader(
+            val_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            drop_last=False,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
+            persistent_workers=persistent_workers if num_workers > 0 else False,
+        )
+
     return DataBundle(
         train_loader=train_loader,
         test_loader=test_loader,
         train_dataset=train_dataset,
         test_dataset=test_dataset,
+        val_loader=val_loader,
+        val_dataset=val_dataset,
+        val_df=val_df,
         scaler=scaler,
         noise_mu=noise_mu,
         noise_std=noise_std,

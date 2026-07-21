@@ -268,6 +268,7 @@ def _build_baseline_from_cfg(cfg: DictConfig, bundle: DataBundle, device: str):
             activation=str(cfg.model.get("activation", "relu")),
             mixture_components=int(cfg.model.get("mixture_components", default_k)),
             noise_student_dof=_needs_student_dof(cfg),
+            noise_asymmetry=_needs_asymmetry(cfg),
             device=device,
         )
         return HeteroscedasticMLPModel(model_cfg).initialize()
@@ -280,6 +281,7 @@ def _build_baseline_from_cfg(cfg: DictConfig, bundle: DataBundle, device: str):
             decoder_dims=tuple(cfg.model.get("decoder_dims", [16, 16])),
             activation=str(cfg.model.get("activation", "relu")),
             noise_student_dof=_needs_student_dof(cfg),
+            noise_asymmetry=_needs_asymmetry(cfg),
             dt=float(cfg.model.get("dt", 30.0)),
             device=device,
         )
@@ -338,6 +340,8 @@ def main(cfg: DictConfig) -> float:
         holdout_site=cfg.data.get("holdout_site"),
         train_subsample_frac=cfg.data.get("train_subsample_frac"),
         train_subsample_seed=int(cfg.data.get("train_subsample_seed", 0)),
+        val_frac=cfg.data.get("val_frac"),
+        val_split_seed=int(cfg.data.get("val_split_seed", 0)),
         shuffle_split=bool(cfg.data.shuffle_split),
         split_random_state=int(cfg.data.split_random_state),
         time_step_k=cfg.data.get("time_step_k"),
@@ -378,6 +382,9 @@ def main(cfg: DictConfig) -> float:
         patience=int(cfg.training.scheduler.get("patience", 10)),
         factor=float(cfg.training.scheduler.get("factor", 0.5)),
         mode=str(cfg.training.scheduler.get("mode", "min")),
+        # cosine needs a horizon; default it to the training length.
+        t_max=int(cfg.training.scheduler.get("t_max") or cfg.training.num_epochs),
+        eta_min=cfg.training.scheduler.get("eta_min"),
     )
 
     # ---------- Losses ----------
@@ -439,6 +446,7 @@ def main(cfg: DictConfig) -> float:
         model=model,
         optimizer=optimizer,
         scheduler=scheduler,
+        scheduler_monitor=str(cfg.training.scheduler.get("monitor", "val")),
         loss_weights=loss_weights,
         mmd_loss_fn=mmd_fn,
         noise_prior_fn=noise_prior_fn,
@@ -465,9 +473,26 @@ def main(cfg: DictConfig) -> float:
             mlflow.set_tag("variant", str(cfg.model.variant))
             mlflow.set_tag("seed", str(cfg.seed))
 
+        # Monitor a TRAIN-SITE validation split when `data.val_frac` is set, so that
+        # best.pth selection and the LR scheduler never see the held-out test site.
+        # With val_frac unset this falls back to the historical behaviour (test loader).
+        _clean_val = getattr(bundle, "val_loader", None) is not None
+        _val_loader = bundle.val_loader if _clean_val else bundle.test_loader
+        log.info("val monitor = %s", "train-site split (leakage-free)"
+                 if _clean_val else "TEST loader (legacy; leaks into best.pth)")
+        if not _clean_val:
+            log.warning("LEAKAGE: best.pth is selected on the HELD-OUT TEST loader because "
+                        "data.val_frac is unset -> report last.pth, or set data.val_frac.")
+            # Only leaks when the plateau scheduler actually reads the (test) val monitor;
+            # scheduler.monitor='train' keeps the LR schedule free of held-out data.
+            if (str(cfg.training.scheduler.name).lower() == "reduce_on_plateau"
+                    and str(cfg.training.scheduler.get("monitor", "val")).lower() != "train"):
+                log.warning("LEAKAGE: scheduler 'reduce_on_plateau' steps on that same test-set "
+                            "loss, so the LR schedule is driven by the test site. Set "
+                            "training.scheduler.monitor=train (or data.val_frac) instead.")
         history = trainer.fit(
             train_loader=bundle.train_loader,
-            val_loader=bundle.test_loader,
+            val_loader=_val_loader,
             num_epochs=int(cfg.training.num_epochs),
             run_dir=run_dir,
         )

@@ -11,9 +11,17 @@ optimizer:
 
 scheduler:
   name: reduce_on_plateau        # 'reduce_on_plateau' | 'cosine' | 'none'
-  patience: 10
-  factor: 0.5
-  mode: min
+  patience: 10                   # reduce_on_plateau only
+  factor: 0.5                    # reduce_on_plateau only
+  mode: min                      # reduce_on_plateau only
+  t_max: null                    # cosine only; null -> training.num_epochs
+  eta_min: null                  # cosine only; null -> torch default (0.0)
+  monitor: val                   # 'val' | 'train' -- which loss reduce_on_plateau reacts to.
+                                 # 'train' keeps the LR schedule free of ALL held-out data and
+                                 # is the leakage-safe choice when data.val_frac is unset.
+# NOTE: 'reduce_on_plateau' steps on the val-monitor loss. With data.val_frac unset that
+# monitor is the HELD-OUT TEST loader, so the LR schedule (and best.pth) would be driven by
+# the test site. Set data.val_frac to monitor a train-site split before enabling it.
 
 # Noise prior for the MMD-on-noise term (mmd_noise loss).
 # kind: 'gaussian' matches noise to N(mean, std); 'empirical' matches to the
