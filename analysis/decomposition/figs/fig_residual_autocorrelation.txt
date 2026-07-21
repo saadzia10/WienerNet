@@ -1,0 +1,1 @@
+Within-night autocorrelation of the residual and of the aleatoric noise versus lag. The residual is temporally persistent (lag-1 ≈ 0.55, decaying over ~2 h) whereas the noise head is white (≈ 0): the residual carries systematic structure the noise does not, so its variance share does not average away.

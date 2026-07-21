@@ -1,11 +1,34 @@
 #!/usr/bin/env python
-"""Assemble the manuscript-grade HTML report with the figure embedded as a
-data URI. Read-only w.r.t. the codebase."""
-import base64, os
+"""Assemble the manuscript-grade HTML report with the figures embedded as
+data URIs. Read-only w.r.t. the codebase.
+
+The manuscript figures are standalone vector PDFs (see make_figures.py and the
+plot-generation conventions in CLAUDE.md). For the self-contained HTML report we
+rasterise each PDF to a PNG data URI (poppler `pdftoppm`) and lay the four error
+panels out as a 2x2 grid — the report is a review artifact, not a LaTeX figure."""
+import base64, os, subprocess, tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
-with open(os.path.join(HERE, "fig_error_structure.png"), "rb") as f:
-    b64 = base64.b64encode(f.read()).decode()
-IMG = f"data:image/png;base64,{b64}"
+FIGDIR = os.path.join(os.path.dirname(HERE), "figures")
+
+ERROR_PANELS = [
+    ("A", "fig_error_a_residual_density"),
+    ("B", "fig_error_b_tail_exceedance"),
+    ("C", "fig_error_c_heteroscedasticity"),
+    ("D", "fig_error_d_aggregation_cancellation"),
+]
+
+def pdf_to_datauri(stem, dpi=200):
+    """Rasterise <FIGDIR>/<stem>.pdf to a base64 PNG data URI for HTML embedding."""
+    pdf = os.path.join(FIGDIR, stem + ".pdf")
+    with tempfile.TemporaryDirectory() as td:
+        prefix = os.path.join(td, "p")
+        subprocess.run(["pdftoppm", "-r", str(dpi), "-png", "-singlefile", pdf, prefix],
+                       check=True)
+        with open(prefix + ".png", "rb") as f:
+            b64 = base64.b64encode(f.read()).decode()
+    return f"data:image/png;base64,{b64}"
+
+PANEL_IMGS = {label: pdf_to_datauri(stem) for label, stem in ERROR_PANELS}
 
 HTML = r"""<title>Nighttime NEE residuals: heteroscedastic & non-Gaussian</title>
 <style>
@@ -56,6 +79,11 @@ strong{font-weight:600;}
 figure{margin:34px 0 8px;}
 figure img{width:100%;height:auto;display:block;border:1px solid var(--faint);
   border-radius:4px;background:#fff;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+@media (max-width:640px){.grid2{grid-template-columns:1fr;}}
+.grid2 .panel{margin:0;}
+.grid2 .panel .plab{font-family:var(--mono);font-size:12px;font-weight:600;
+  color:var(--accent);margin:0 0 4px;}
 figcaption{font-size:13.5px;color:var(--muted);margin-top:12px;line-height:1.5;}
 figcaption b{color:var(--ink);font-weight:600;}
 .tbl-scroll{overflow-x:auto;margin:20px 0;}
@@ -128,7 +156,12 @@ a{color:var(--accent);}
     (scatter) part where it matters.</p>
 
   <figure>
-    <img alt="Four-panel figure: residual density vs Gaussian and Laplace, tail probabilities, heteroscedastic scale versus flux, and relative uncertainty versus aggregation window." src="__IMG__">
+    <div class="grid2">
+      <figure class="panel"><p class="plab">A</p><img alt="Density of the flux-standardised residual on a log axis with Gaussian and Laplace fits." src="__IMG_A__"></figure>
+      <figure class="panel"><p class="plab">B</p><img alt="Tail exceedance probability of the standardised residual versus threshold." src="__IMG_B__"></figure>
+      <figure class="panel"><p class="plab">C</p><img alt="Local residual scale rising linearly with predicted flux." src="__IMG_C__"></figure>
+      <figure class="panel"><p class="plab">D</p><img alt="Relative uncertainty of the summed flux falling under aggregation." src="__IMG_D__"></figure>
+    </div>
     <figcaption><b>Figure 1.</b> Error structure of the pooled physics residual
       (<em>n</em>&nbsp;=&nbsp;92,063). <b>(A)</b> Density of the flux-standardised residual on a
       log axis; the Laplace fit captures the tent-shaped peak and heavy tails the
@@ -251,7 +284,10 @@ a{color:var(--accent);}
 </div>
 """
 
-out = os.path.join(HERE, "report.html")
+out = os.path.join(os.path.dirname(HERE), "error_structure_report.html")
+html = HTML
+for label, uri in PANEL_IMGS.items():
+    html = html.replace(f"__IMG_{label}__", uri)
 with open(out, "w") as f:
-    f.write(HTML.replace("__IMG__", IMG))
+    f.write(html)
 print("wrote", out, "bytes:", os.path.getsize(out))

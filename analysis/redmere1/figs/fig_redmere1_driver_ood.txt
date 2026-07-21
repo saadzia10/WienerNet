@@ -1,0 +1,1 @@
+Standardised mean shift of each meteorological driver at Redmere 1 relative to the training pool, on a logarithmic axis (signed value annotated). Only the momentum flux Tau is out-of-distribution (−26.5σ, ~50x the next-largest shift); every other driver, including air and soil temperature, sits well inside 1σ — the corrupted Tau channel is the single OOD input.

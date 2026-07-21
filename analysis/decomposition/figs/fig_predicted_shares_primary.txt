@@ -1,0 +1,1 @@
+Share of the WienerNet-SS predicted-increment variance carried by the physics drift and the noise head (primary, residual-off configuration) versus within-night window. The physics-drift share climbs from 7% to 26% as the coherent respiration signal accumulates while the white noise averages down from 93% to 74%.

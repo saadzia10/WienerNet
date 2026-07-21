@@ -1,0 +1,15 @@
+site,target,metric,value,n
+redmere_1,nee,mae,1.85576331615448,3942
+redmere_1,nee,rmse,16.383716583251953,3942
+redmere_1,nee,bias,0.6299917101860046,3942
+redmere_1,nee,r2,-39.05990982055664,3942
+redmere_1,nee,mmd,0.07217855621022783,3942
+redmere_1,nee,kl,0.06818449414696875,3942
+redmere_1,nee,wasserstein,0.9291447766185956,3942
+redmere_1,nee_mean,mae,1.426138997077942,3942
+redmere_1,nee_mean,rmse,16.32612419128418,3942
+redmere_1,nee_mean,bias,0.6824954748153687,3942
+redmere_1,nee_mean,r2,-38.77876663208008,3942
+redmere_1,nee_mean,mmd,0.010418256002613218,3942
+redmere_1,nee_mean,kl,0.03364474788317007,3942
+redmere_1,nee_mean,wasserstein,0.7000253709601131,3942

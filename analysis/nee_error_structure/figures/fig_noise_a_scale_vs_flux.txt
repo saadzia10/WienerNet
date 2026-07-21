@@ -1,0 +1,1 @@
+Predicted noise scale of the trained NLL heads versus flux, against the empirical residual scale. Both the Student-t and β-NLL heads are heteroscedastic but rise too shallowly with flux, under-predicting the residual scale in the high-flux regime.

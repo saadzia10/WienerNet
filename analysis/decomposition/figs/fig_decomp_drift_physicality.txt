@@ -1,0 +1,1 @@
+Each model's predicted drift rate against the analytic Lloyd-Taylor drift. WienerNet-SS lies on the identity line by construction (r = 1.00) whereas the Neural SDE's free drift is a scattered cloud (r = 0.26): only the physics-informed drift is an interpretable respiration term.

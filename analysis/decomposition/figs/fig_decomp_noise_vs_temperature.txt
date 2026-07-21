@@ -1,0 +1,1 @@
+Mean one-step residual (observation minus predicted mean) binned by air temperature. Both WienerNet-SS and the Neural SDE leave essentially no temperature structure in the noise (correlations -0.01 and -0.03), so the aleatoric term is a clean, structureless remainder.

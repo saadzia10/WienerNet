@@ -1,0 +1,1 @@
+Tail exceedance probability of the standardised residual versus threshold. The empirical tail follows the Laplace reference far past 3 standard deviations while the Gaussian collapses, confirming heavy, near-exponential tails.

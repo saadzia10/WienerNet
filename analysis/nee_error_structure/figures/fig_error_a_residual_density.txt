@@ -1,0 +1,1 @@
+Distribution of the standardised nighttime NEE residual (physics prediction minus observed flux), pooled across sites. The empirical density has a sharp central peak and heavy tails that track a Laplace fit rather than the Gaussian, so the residual is clearly non-Gaussian.

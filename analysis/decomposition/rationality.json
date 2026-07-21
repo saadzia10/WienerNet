@@ -1,0 +1,50 @@
+{
+  "WienerNet-SS (primary, resid off)": {
+    "n": 53492,
+    "noise_mean": -0.06567317811405265,
+    "corr_eta_Ta": -0.013374484070642208,
+    "corr_eta_Reco": -0.028223160224195267,
+    "eta_std": 1.6208276872205938,
+    "eta_mad": 0.5452771231412887,
+    "model_sigma_param": 0.6450241681427635,
+    "eta_skew": -0.7154107873775395,
+    "eta_exkurt": 36.23900992568003,
+    "var_frac_drift": 0.021287257635675703,
+    "var_frac_noise": 1.013492808461011,
+    "corr_resid_Ta": NaN,
+    "resid_std_incr": NaN,
+    "corr_drift_physics": 0.9999999999999998
+  },
+  "WienerNet-SS (+residual)": {
+    "n": 53492,
+    "noise_mean": 0.03083728832033726,
+    "corr_eta_Ta": -0.013821484622299155,
+    "corr_eta_Reco": -0.001820339276909521,
+    "eta_std": 1.6624442564300899,
+    "eta_mad": 0.5580591144561767,
+    "model_sigma_param": 0.6139824004122479,
+    "eta_skew": -0.4220416294550077,
+    "eta_exkurt": 32.74955098565007,
+    "var_frac_drift": 0.0834735347326103,
+    "var_frac_noise": 1.0662060967137703,
+    "corr_resid_Ta": -0.015216183149620505,
+    "resid_std_incr": 0.4669800611163217,
+    "corr_drift_physics": 0.2908511628590219
+  },
+  "Neural SDE (ALD, free drift)": {
+    "n": 53492,
+    "noise_mean": -0.06886038120351677,
+    "corr_eta_Ta": -0.031245833737054574,
+    "corr_eta_Reco": -0.03642404477884296,
+    "eta_std": 1.6237659017516048,
+    "eta_mad": 0.537957802248001,
+    "model_sigma_param": 0.802136039441446,
+    "eta_skew": -0.6375296824778102,
+    "eta_exkurt": 35.46189811518828,
+    "var_frac_drift": 0.03082805669547474,
+    "var_frac_noise": 1.0171706311338886,
+    "corr_resid_Ta": NaN,
+    "resid_std_incr": NaN,
+    "corr_drift_physics": 0.2558610755000644
+  }
+}

@@ -1,0 +1,1 @@
+Relative uncertainty of the summed flux as a function of aggregation window. The observed uncertainty falls steadily toward the ideal 1/sqrt(N) rate, so the random measurement error largely cancels under temporal aggregation (from half-hourly to annual sums).

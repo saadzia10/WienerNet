@@ -1,0 +1,1 @@
+Local residual scale versus predicted respiration flux, per flux bin. Both the Gaussian (SD) and Laplace (b) scales grow linearly with flux magnitude (SD ~ 0.24 + 0.30*flux, R^2=0.99), so the noise is strongly heteroscedastic.

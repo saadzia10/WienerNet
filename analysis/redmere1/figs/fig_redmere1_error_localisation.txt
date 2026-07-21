@@ -1,0 +1,1 @@
+Redmere 1 one-step RMSE split into the deterministic mean (drift only) and the sampled prediction (drift + noise). For WienerNet-SS the physics-anchored mean stays stable (~1–2) and only the noise sample explodes; the black-box MDN and Neural SDE blow up in the mean itself (12.7 and 1418), having no physics to anchor the conditional mean.

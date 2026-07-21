@@ -1,0 +1,15 @@
+site,target,metric,value,n
+woodwalton,nee,mae,1.0864218473434448,17164
+woodwalton,nee,rmse,1.9442039728164673,17164
+woodwalton,nee,bias,0.03388621658086777,17164
+woodwalton,nee,r2,0.40998464822769165,17164
+woodwalton,nee,mmd,0.04521349911101299,17164
+woodwalton,nee,kl,0.027810454579501095,17164
+woodwalton,nee,wasserstein,0.2083752207622752,17164
+woodwalton,nee_mean,mae,0.5489870309829712,17164
+woodwalton,nee_mean,rmse,1.2353824377059937,17164
+woodwalton,nee_mean,bias,0.039157040417194366,17164
+woodwalton,nee_mean,r2,0.7617776393890381,17164
+woodwalton,nee_mean,mmd,0.02160541079355983,17164
+woodwalton,nee_mean,kl,0.034130807154765665,17164
+woodwalton,nee_mean,wasserstein,0.09990648099908622,17164

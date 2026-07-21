@@ -1,0 +1,1 @@
+Variance of the summed physics-drift, residual and noise increments versus the within-night window (log-log), with fitted power-law slopes. Only the physics drift accumulates coherently (slope 1.84); the residual (1.05) and the white noise (0.85) scale ~linearly — the residual is a stationary structured correction, not an accumulating second drift.

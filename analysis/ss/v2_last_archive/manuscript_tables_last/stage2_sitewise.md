@@ -1,0 +1,102 @@
+### Stage 2 (gap-filling) — site-wise
+
+| Site | Model / ablation | RMSE 0-2h | RMSE 2-5h | RMSE 5h+ | CRPS 5h+ | PIT-KS 5h+ | cov90 5h+ | n |
+|---|---|---|---|---|---|---|---|---|
+| Woodwalton | WienerNet-SS (ALD, primary) | 2.07 ± 1.63 | 4.72 ± 4.55 | 9.62 ± 10.71 | 5.537 ± 6.340 | 0.496 ± 0.307 | 0.400 ± 0.253 | 5 |
+| Woodwalton | WienerNet-SS (Gaussian) | 3.15 ± 2.27 | 7.46 ± 6.28 | 14.47 ± 14.71 | 8.844 ± 10.470 | 0.343 ± 0.372 | 0.589 ± 0.370 | 5 |
+| Woodwalton | WienerNet-SS (beta-NLL) | 1.84 ± 0.60 | 4.20 ± 1.86 | 7.17 ± 3.04 | 3.818 ± 1.931 | 0.379 ± 0.224 | 0.562 ± 0.265 | 5 |
+| Woodwalton | WienerNet-SS (Student-t) | 1.70 ± 0.72 | 3.87 ± 2.18 | 7.49 ± 5.02 | 4.566 ± 3.345 | 0.501 ± 0.300 | 0.422 ± 0.305 | 5 |
+| Woodwalton | WienerNet-SS (mixture) | 1.40 ± 0.51 | 2.82 ± 1.61 | 4.52 ± 2.97 | 2.392 ± 1.284 | 0.275 ± 0.156 | 0.782 ± 0.188 | 5 |
+| Woodwalton | WienerNet-SS (+residual) | 1.30 ± 0.21 | 2.48 ± 0.84 | 3.97 ± 1.57 | 2.439 ± 1.282 | 0.404 ± 0.254 | 0.556 ± 0.328 | 5 |
+| Woodwalton | WienerNet-SS (given-diurnal, Wiener) | 1.07 ± 0.00 | 1.64 ± 0.00 | 1.97 ± 0.00 | 1.055 ± 0.046 | 0.164 ± 0.078 | 0.664 ± 0.167 | 5 |
+| Woodwalton | WienerNet-SS (given-diurnal, state-sp) | 1.07 ± 0.00 | 1.64 ± 0.00 | 1.97 ± 0.00 | 1.145 ± 0.272 | 0.149 ± 0.065 | 0.764 ± 0.176 | 5 |
+| Woodwalton | Neural SDE (Gaussian) | 1.53 ± 0.39 | 3.12 ± 1.29 | 5.73 ± 4.14 | 3.661 ± 3.301 | 0.371 ± 0.212 | 0.702 ± 0.282 | 5 |
+| Woodwalton | Neural SDE (Student-t) | 1.20 ± 0.15 | 2.04 ± 0.38 | 2.91 ± 0.73 | 1.835 ± 0.599 | 0.293 ± 0.234 | 0.732 ± 0.298 | 5 |
+| Woodwalton | Neural SDE (ALD) | 1.27 ± 0.38 | 2.29 ± 1.06 | 3.27 ± 1.35 | 1.971 ± 0.416 | 0.430 ± 0.179 | 0.567 ± 0.328 | 5 |
+| Woodwalton | Mean-variance (Gaussian) | 1.13 ± 0.06 | 1.84 ± 0.21 | 2.43 ± 0.49 | 1.450 ± 0.316 | 0.201 ± 0.101 | 0.902 ± 0.070 | 5 |
+| Woodwalton | Mean-variance (Student-t) | 1.12 ± 0.04 | 1.81 ± 0.18 | 2.43 ± 0.48 | 1.371 ± 0.263 | 0.255 ± 0.125 | 0.816 ± 0.125 | 5 |
+| Woodwalton | Mean-variance (ALD) | 1.08 ± 0.02 | 1.70 ± 0.08 | 2.11 ± 0.23 | 1.260 ± 0.237 | 0.205 ± 0.066 | 0.903 ± 0.086 | 5 |
+| Woodwalton | Analytical SDE (Gaussian) | 1.04 | 1.59 | 1.92 | 1.876 | 0.328 | 0.998 | 1 |
+| Woodwalton | Analytical SDE (Student-t) | 1.04 | 1.59 | 1.92 | 1.060 | 0.215 | 0.957 | 1 |
+| Woodwalton | MDN (mixture) | 1.07 ± 0.01 | 1.69 ± 0.04 | 2.13 ± 0.16 | 1.257 ± 0.173 | 0.240 ± 0.088 | 0.908 ± 0.070 | 5 |
+| Woodwalton | Random Forest | 1.68 ± 0.02 | 1.47 ± 0.02 | 1.52 ± 0.01 | — | — | — | 5 |
+| Woodwalton | XGBoost | 2.53 ± 0.00 | 2.19 ± 0.00 | 2.11 ± 0.00 | — | — | — | 5 |
+| Rosedene | WienerNet-SS (ALD, primary) | 1.58 ± 0.02 | 1.79 ± 0.12 | 2.27 ± 0.34 | 1.202 ± 0.096 | 0.224 ± 0.020 | 0.951 ± 0.055 | 5 |
+| Rosedene | WienerNet-SS (Gaussian) | 1.60 ± 0.05 | 1.88 ± 0.11 | 2.52 ± 0.16 | 1.578 ± 0.129 | 0.263 ± 0.026 | 0.966 ± 0.042 | 5 |
+| Rosedene | WienerNet-SS (beta-NLL) | 1.61 ± 0.05 | 1.77 ± 0.11 | 2.09 ± 0.27 | 1.364 ± 0.166 | 0.243 ± 0.016 | 0.990 ± 0.011 | 5 |
+| Rosedene | WienerNet-SS (Student-t) | 1.56 ± 0.03 | 1.67 ± 0.08 | 2.09 ± 0.24 | 1.197 ± 0.063 | 0.207 ± 0.039 | 0.975 ± 0.021 | 5 |
+| Rosedene | WienerNet-SS (mixture) | 1.56 ± 0.02 | 1.65 ± 0.05 | 2.06 ± 0.15 | 1.334 ± 0.188 | 0.258 ± 0.024 | 0.991 ± 0.009 | 5 |
+| Rosedene | WienerNet-SS (+residual) | 1.61 ± 0.06 | 1.83 ± 0.21 | 2.41 ± 0.68 | 1.338 ± 0.225 | 0.223 ± 0.057 | 0.972 ± 0.025 | 5 |
+| Rosedene | WienerNet-SS (given-diurnal, Wiener) | 1.55 ± 0.00 | 1.58 ± 0.00 | 1.85 ± 0.00 | 1.128 ± 0.109 | 0.252 ± 0.027 | 0.978 ± 0.012 | 5 |
+| Rosedene | WienerNet-SS (given-diurnal, state-sp) | 1.55 ± 0.00 | 1.58 ± 0.00 | 1.85 ± 0.00 | 1.306 ± 0.222 | 0.292 ± 0.036 | 0.980 ± 0.020 | 5 |
+| Rosedene | Neural SDE (Gaussian) | 1.66 ± 0.08 | 2.11 ± 0.34 | 3.05 ± 0.37 | 1.774 ± 0.200 | 0.210 ± 0.051 | 0.971 ± 0.032 | 5 |
+| Rosedene | Neural SDE (Student-t) | 1.59 ± 0.03 | 1.73 ± 0.05 | 2.27 ± 0.20 | 1.385 ± 0.152 | 0.214 ± 0.030 | 0.983 ± 0.017 | 5 |
+| Rosedene | Neural SDE (ALD) | 1.64 ± 0.15 | 1.81 ± 0.26 | 2.12 ± 0.26 | 1.341 ± 0.221 | 0.254 ± 0.043 | 0.989 ± 0.012 | 5 |
+| Rosedene | Mean-variance (Gaussian) | 1.62 ± 0.05 | 1.82 ± 0.06 | 2.29 ± 0.22 | 1.764 ± 0.344 | 0.277 ± 0.041 | 0.996 ± 0.004 | 5 |
+| Rosedene | Mean-variance (Student-t) | 1.57 ± 0.03 | 1.70 ± 0.06 | 2.20 ± 0.31 | 1.549 ± 0.224 | 0.267 ± 0.025 | 0.991 ± 0.011 | 5 |
+| Rosedene | Mean-variance (ALD) | 1.59 ± 0.06 | 1.72 ± 0.10 | 2.14 ± 0.21 | 1.527 ± 0.315 | 0.274 ± 0.024 | 0.996 ± 0.002 | 5 |
+| Rosedene | Analytical SDE (Gaussian) | 1.55 | 1.59 | 1.80 | 1.545 | 0.310 | 1.000 | 1 |
+| Rosedene | Analytical SDE (Student-t) | 1.55 | 1.59 | 1.80 | 0.916 | 0.144 | 0.913 | 1 |
+| Rosedene | MDN (mixture) | 1.64 ± 0.12 | 1.85 ± 0.25 | 2.39 ± 0.32 | 1.595 ± 0.244 | 0.237 ± 0.032 | 0.989 ± 0.009 | 5 |
+| Rosedene | Random Forest | 1.97 ± 0.01 | 1.24 ± 0.01 | 1.18 ± 0.01 | — | — | — | 5 |
+| Rosedene | XGBoost | 2.12 ± 0.00 | 1.33 ± 0.00 | 1.25 ± 0.00 | — | — | — | 5 |
+| Redmere 1 | WienerNet-SS (ALD, primary) | 5.85 ± 0.82 | 8.63 ± 1.36 | 3.16 ± 0.18 | 1.503 ± 0.079 | 0.281 ± 0.032 | 0.988 ± 0.014 | 5 |
+| Redmere 1 | WienerNet-SS (Gaussian) | 6.06 ± 0.97 | 8.94 ± 1.40 | 3.56 ± 0.58 | 6.797 ± 11.647 | 0.259 ± 0.032 | 0.982 ± 0.020 | 5 |
+| Redmere 1 | WienerNet-SS (beta-NLL) | 5.75 ± 1.02 | 8.62 ± 1.62 | 4.37 ± 1.31 | 8.997 ± 10.846 | 0.267 ± 0.026 | 0.985 ± 0.013 | 5 |
+| Redmere 1 | WienerNet-SS (Student-t) | 5.42 ± 0.44 | 8.07 ± 0.72 | 3.21 ± 0.41 | 3.573 ± 4.846 | 0.216 ± 0.028 | 0.977 ± 0.024 | 5 |
+| Redmere 1 | WienerNet-SS (mixture) | 5.17 ± 1.00 | 7.57 ± 1.74 | 3.04 ± 0.14 | 1.493 ± 0.083 | 0.260 ± 0.024 | 0.992 ± 0.007 | 5 |
+| Redmere 1 | WienerNet-SS (+residual) | 5.61 ± 0.63 | 8.32 ± 0.98 | 3.20 ± 0.34 | 5.551 ± 3.827 | 0.286 ± 0.021 | 0.994 ± 0.005 | 5 |
+| Redmere 1 | WienerNet-SS (given-diurnal, Wiener) | 1.62 ± 0.00 | 1.81 ± 0.00 | 1.43 ± 0.00 | 2.902 ± 2.685 | 0.328 ± 0.015 | 0.998 ± 0.002 | 5 |
+| Redmere 1 | WienerNet-SS (given-diurnal, state-sp) | 1.62 ± 0.00 | 1.81 ± 0.00 | 1.43 ± 0.00 | 4.439 ± 4.706 | 0.314 ± 0.017 | 0.997 ± 0.003 | 5 |
+| Redmere 1 | Neural SDE (Gaussian) | 618.88 ± 588.25 | 840.83 ± 799.27 | 362.39 ± 344.36 | 10.938 ± 8.837 | 0.278 ± 0.025 | 0.987 ± 0.008 | 5 |
+| Redmere 1 | Neural SDE (Student-t) | 651.54 ± 528.19 | 885.02 ± 717.47 | 381.62 ± 309.41 | 17.411 ± 4.498 | 0.280 ± 0.039 | 0.982 ± 0.014 | 5 |
+| Redmere 1 | Neural SDE (ALD) | 86.86 ± 89.41 | 117.99 ± 121.46 | 50.97 ± 52.31 | 4.523 ± 3.524 | 0.295 ± 0.042 | 0.996 ± 0.005 | 5 |
+| Redmere 1 | Mean-variance (Gaussian) | 261.67 ± 404.03 | 355.48 ± 548.94 | 153.33 ± 236.47 | 8.018 ± 9.608 | 0.294 ± 0.025 | 0.991 ± 0.004 | 5 |
+| Redmere 1 | Mean-variance (Student-t) | 123.09 ± 128.33 | 167.22 ± 174.35 | 72.17 ± 75.02 | 4.505 ± 3.878 | 0.267 ± 0.028 | 0.989 ± 0.006 | 5 |
+| Redmere 1 | Mean-variance (ALD) | 124.78 ± 136.92 | 169.46 ± 186.08 | 73.20 ± 80.01 | 3.995 ± 3.174 | 0.284 ± 0.028 | 0.997 ± 0.001 | 5 |
+| Redmere 1 | Analytical SDE (Gaussian) | 1.60 | 1.76 | 1.30 | 1.686 | 0.309 | 1.000 | 1 |
+| Redmere 1 | Analytical SDE (Student-t) | 1.60 | 1.76 | 1.30 | 0.794 | 0.183 | 0.973 | 1 |
+| Redmere 1 | MDN (mixture) | 49.89 ± 55.38 | 67.74 ± 75.26 | 29.52 ± 32.07 | 3.042 ± 1.089 | 0.260 ± 0.031 | 0.994 ± 0.004 | 5 |
+| Redmere 1 | Random Forest | 1.45 ± 0.01 | 1.20 ± 0.01 | 0.89 ± 0.01 | — | — | — | 5 |
+| Redmere 1 | XGBoost | 1.52 ± 0.00 | 1.28 ± 0.00 | 0.90 ± 0.00 | — | — | — | 5 |
+| Redmere 2 | WienerNet-SS (ALD, primary) | 1.89 ± 0.07 | 1.99 ± 0.23 | 1.93 ± 0.58 | 1.530 ± 0.308 | 0.351 ± 0.027 | 0.994 ± 0.011 | 5 |
+| Redmere 2 | WienerNet-SS (Gaussian) | 1.91 ± 0.16 | 2.24 ± 0.85 | 3.25 ± 2.28 | 1.798 ± 0.791 | 0.295 ± 0.040 | 0.972 ± 0.032 | 5 |
+| Redmere 2 | WienerNet-SS (beta-NLL) | 1.87 ± 0.05 | 1.82 ± 0.13 | 1.81 ± 0.18 | 1.467 ± 0.324 | 0.292 ± 0.037 | 0.990 ± 0.010 | 5 |
+| Redmere 2 | WienerNet-SS (Student-t) | 1.86 ± 0.07 | 1.83 ± 0.16 | 1.86 ± 0.21 | 1.393 ± 0.277 | 0.271 ± 0.034 | 0.986 ± 0.012 | 5 |
+| Redmere 2 | WienerNet-SS (mixture) | 1.87 ± 0.05 | 1.87 ± 0.09 | 1.81 ± 0.11 | 1.364 ± 0.124 | 0.281 ± 0.013 | 0.998 ± 0.002 | 5 |
+| Redmere 2 | WienerNet-SS (+residual) | 1.85 ± 0.05 | 1.90 ± 0.13 | 2.00 ± 0.38 | 1.361 ± 0.271 | 0.284 ± 0.021 | 0.993 ± 0.010 | 5 |
+| Redmere 2 | WienerNet-SS (given-diurnal, Wiener) | 1.82 ± 0.00 | 1.75 ± 0.00 | 1.66 ± 0.00 | 1.428 ± 0.124 | 0.335 ± 0.012 | 0.999 ± 0.001 | 5 |
+| Redmere 2 | WienerNet-SS (given-diurnal, state-sp) | 1.82 ± 0.00 | 1.75 ± 0.00 | 1.66 ± 0.00 | 1.416 ± 0.403 | 0.340 ± 0.033 | 0.999 ± 0.001 | 5 |
+| Redmere 2 | Neural SDE (Gaussian) | 1.94 ± 0.13 | 2.33 ± 0.70 | 3.00 ± 1.52 | 1.675 ± 0.452 | 0.247 ± 0.035 | 0.979 ± 0.033 | 5 |
+| Redmere 2 | Neural SDE (Student-t) | 1.92 ± 0.08 | 2.12 ± 0.31 | 2.34 ± 0.93 | 1.380 ± 0.405 | 0.250 ± 0.049 | 0.994 ± 0.006 | 5 |
+| Redmere 2 | Neural SDE (ALD) | 1.95 ± 0.22 | 2.24 ± 0.79 | 2.70 ± 2.14 | 1.524 ± 0.624 | 0.296 ± 0.025 | 0.994 ± 0.008 | 5 |
+| Redmere 2 | Mean-variance (Gaussian) | 1.84 ± 0.02 | 1.79 ± 0.07 | 1.73 ± 0.21 | 1.227 ± 0.108 | 0.270 ± 0.028 | 0.998 ± 0.001 | 5 |
+| Redmere 2 | Mean-variance (Student-t) | 1.84 ± 0.04 | 1.88 ± 0.15 | 1.88 ± 0.32 | 1.257 ± 0.252 | 0.249 ± 0.037 | 0.994 ± 0.005 | 5 |
+| Redmere 2 | Mean-variance (ALD) | 1.85 ± 0.03 | 1.87 ± 0.12 | 1.71 ± 0.25 | 1.263 ± 0.145 | 0.278 ± 0.052 | 0.999 ± 0.002 | 5 |
+| Redmere 2 | Analytical SDE (Gaussian) | 1.82 | 1.75 | 1.71 | 1.722 | 0.307 | 0.994 | 1 |
+| Redmere 2 | Analytical SDE (Student-t) | 1.82 | 1.75 | 1.71 | 0.886 | 0.180 | 0.947 | 1 |
+| Redmere 2 | MDN (mixture) | 1.83 ± 0.02 | 1.84 ± 0.15 | 1.92 ± 0.61 | 1.263 ± 0.312 | 0.253 ± 0.030 | 0.994 ± 0.009 | 5 |
+| Redmere 2 | Random Forest | 1.68 ± 0.01 | 1.49 ± 0.01 | 1.24 ± 0.01 | — | — | — | 5 |
+| Redmere 2 | XGBoost | 1.85 ± 0.00 | 1.59 ± 0.00 | 1.34 ± 0.00 | — | — | — | 5 |
+| Great Fen | WienerNet-SS (ALD, primary) | 1.72 ± 0.04 | 1.91 ± 0.14 | 1.90 ± 0.20 | 1.553 ± 0.125 | 0.288 ± 0.054 | 0.992 ± 0.006 | 5 |
+| Great Fen | WienerNet-SS (Gaussian) | 1.80 ± 0.08 | 2.21 ± 0.34 | 2.92 ± 0.86 | 1.988 ± 0.195 | 0.276 ± 0.045 | 0.978 ± 0.029 | 5 |
+| Great Fen | WienerNet-SS (beta-NLL) | 1.98 ± 0.33 | 2.90 ± 1.21 | 3.99 ± 2.13 | 2.361 ± 0.915 | 0.344 ± 0.079 | 0.969 ± 0.059 | 5 |
+| Great Fen | WienerNet-SS (Student-t) | 1.79 ± 0.07 | 2.21 ± 0.22 | 2.64 ± 0.45 | 1.816 ± 0.560 | 0.247 ± 0.069 | 0.982 ± 0.027 | 5 |
+| Great Fen | WienerNet-SS (mixture) | 1.70 ± 0.02 | 1.88 ± 0.17 | 2.12 ± 0.68 | 1.668 ± 0.309 | 0.228 ± 0.056 | 0.992 ± 0.010 | 5 |
+| Great Fen | WienerNet-SS (+residual) | 1.76 ± 0.08 | 2.08 ± 0.31 | 2.28 ± 0.51 | 1.645 ± 0.431 | 0.268 ± 0.065 | 0.988 ± 0.012 | 5 |
+| Great Fen | WienerNet-SS (given-diurnal, Wiener) | 1.70 ± 0.00 | 1.79 ± 0.00 | 1.71 ± 0.00 | 1.491 ± 0.154 | 0.288 ± 0.024 | 0.988 ± 0.009 | 5 |
+| Great Fen | WienerNet-SS (given-diurnal, state-sp) | 1.70 ± 0.00 | 1.79 ± 0.00 | 1.71 ± 0.00 | 1.369 ± 0.136 | 0.279 ± 0.030 | 0.985 ± 0.008 | 5 |
+| Great Fen | Neural SDE (Gaussian) | 1.85 ± 0.20 | 2.54 ± 0.70 | 3.34 ± 1.15 | 1.805 ± 0.219 | 0.222 ± 0.054 | 0.969 ± 0.041 | 5 |
+| Great Fen | Neural SDE (Student-t) | 1.76 ± 0.09 | 2.17 ± 0.29 | 2.64 ± 0.49 | 1.577 ± 0.154 | 0.219 ± 0.022 | 0.983 ± 0.024 | 5 |
+| Great Fen | Neural SDE (ALD) | 1.70 ± 0.01 | 1.90 ± 0.07 | 1.93 ± 0.16 | 1.486 ± 0.112 | 0.267 ± 0.032 | 0.984 ± 0.024 | 5 |
+| Great Fen | Mean-variance (Gaussian) | 1.79 ± 0.11 | 2.20 ± 0.42 | 2.52 ± 0.84 | 1.504 ± 0.223 | 0.224 ± 0.016 | 0.989 ± 0.007 | 5 |
+| Great Fen | Mean-variance (Student-t) | 1.81 ± 0.18 | 2.27 ± 0.64 | 2.59 ± 1.05 | 1.469 ± 0.234 | 0.212 ± 0.040 | 0.974 ± 0.018 | 5 |
+| Great Fen | Mean-variance (ALD) | 1.75 ± 0.08 | 2.07 ± 0.32 | 2.25 ± 0.58 | 1.505 ± 0.243 | 0.257 ± 0.031 | 0.982 ± 0.016 | 5 |
+| Great Fen | Analytical SDE (Gaussian) | 1.69 | 1.77 | 1.68 | 1.694 | 0.262 | 1.000 | 1 |
+| Great Fen | Analytical SDE (Student-t) | 1.69 | 1.77 | 1.68 | 1.098 | 0.163 | 0.980 | 1 |
+| Great Fen | MDN (mixture) | 1.70 ± 0.02 | 1.84 ± 0.09 | 1.86 ± 0.20 | 1.272 ± 0.150 | 0.216 ± 0.041 | 0.988 ± 0.008 | 5 |
+| Great Fen | Random Forest | 1.91 ± 0.01 | 1.45 ± 0.01 | 1.04 ± 0.01 | — | — | — | 5 |
+| Great Fen | XGBoost | 1.97 ± 0.00 | 1.45 ± 0.00 | 1.06 ± 0.00 | — | — | — | 5 |
+
+**Stage 2 — autoregressive gap-fill, per held-out site.** mean ± 1 SD over the 5 seeds (0-4); n = 1 entries are the calibrated, seed-independent models. Raw predictive band; metric conventions as in the pooled Stage-2 tables.  **Uniform protocol** (`outputs/ss_full5`): every gradient-trained arm was re-trained under one identical schedule — `reduce_on_plateau` stepped on the held-out-site loss, no validation split carved from the training sites — so the ± is a genuine seed spread and not a mixture of protocols. Because the LR schedule reacts to the held-out site, model *selection* is test-informed; reported metrics are nonetheless taken from `last.pth`.
+

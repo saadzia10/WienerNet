@@ -1,0 +1,1 @@
+Maximum predicted aleatoric noise scale on the training sites versus the held-out Redmere 1 test set, for four WienerNet-SS configurations. The unbounded learned noise-scale head extrapolates to 10³–10⁴ on the corrupted-Tau rows for every configuration except the primary (learned-diurnal tendency + single-Wiener noise), whose scale stays bounded (0.9).

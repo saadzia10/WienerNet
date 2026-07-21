@@ -1,0 +1,28 @@
+### Stage 2 (gap-filling) — all sites (5 towers, including the Redmere-1 OOD stress)
+
+| Model / ablation | RMSE 0-2h | RMSE 2-5h | RMSE 5h+ | CRPS 5h+ | PIT-KS 5h+ | cov90 5h+ | n |
+|---|---|---|---|---|---|---|---|
+| WienerNet-SS (ALD, primary) | 2.52 ± 1.86 | 3.51 ± 3.04 | 3.01 ± 1.09 | 1.648 ± 0.484 | 0.289 ± 0.126 | 0.908 ± 0.188 | 15 |
+| WienerNet-SS (Gaussian) | 2.34 ± 1.37 | 3.27 ± 2.43 | 3.30 ± 2.55 | 2.817 ± 3.464 | 0.285 ± 0.113 | 0.923 ± 0.181 | 15 |
+| WienerNet-SS (beta-NLL) | 2.56 ± 2.02 | 3.75 ± 3.21 | 4.24 ± 2.04 | 2.339 ± 1.098 | 0.323 ± 0.097 | 0.881 ± 0.210 | 15 |
+| WienerNet-SS (Student-t) | 2.57 ± 1.95 | 3.54 ± 3.03 | 2.82 ± 0.98 | 1.762 ± 0.675 | 0.276 ± 0.127 | 0.910 ± 0.207 | 15 |
+| WienerNet-SS (mixture) | 2.00 ± 0.65 | 2.83 ± 1.95 | 3.37 ± 3.90 | 2.103 ± 2.022 | 0.259 ± 0.083 | 0.946 ± 0.114 | 15 |
+| WienerNet-SS (+residual) | 2.64 ± 1.94 | 3.81 ± 2.97 | 3.39 ± 0.99 | 2.537 ± 2.036 | 0.315 ± 0.102 | 0.859 ± 0.237 | 15 |
+| WienerNet-SS (state-space) | — | — | — | — | — | — | 0 |
+| WienerNet-SS (given-diurnal, Wiener) | 1.55 ± 0.27 | 1.72 ± 0.09 | 1.72 ± 0.19 | 1.296 ± 0.271 | 0.271 ± 0.075 | 0.939 ± 0.138 | 15 |
+| WienerNet-SS (given-diurnal, state-sp) | 1.55 ± 0.27 | 1.72 ± 0.09 | 1.72 ± 0.19 | 1.432 ± 0.315 | 0.285 ± 0.072 | 0.951 ± 0.100 | 15 |
+| WienerNet-SS (predicted-k) | — | — | — | — | — | — | 0 |
+| Neural SDE (Gaussian) | 374.81 ± 1237.26 | 509.38 ± 1680.91 | 221.84 ± 723.72 | 7.627 ± 16.425 | 0.321 ± 0.080 | 0.905 ± 0.177 | 15 |
+| Neural SDE (Student-t) | 120.88 ± 299.92 | 164.43 ± 407.37 | 73.37 ± 174.68 | 6.325 ± 9.686 | 0.292 ± 0.146 | 0.911 ± 0.208 | 15 |
+| Neural SDE (ALD) | 29.06 ± 72.55 | 39.39 ± 98.55 | 18.68 ± 41.89 | 2.202 ± 1.677 | 0.277 ± 0.073 | 0.942 ± 0.150 | 15 |
+| Mean-variance (Gaussian) | 115.35 ± 297.41 | 156.61 ± 404.10 | 68.92 ± 173.59 | 4.260 ± 6.849 | 0.250 ± 0.041 | 0.955 ± 0.113 | 15 |
+| Mean-variance (Student-t) | 134.56 ± 395.48 | 182.65 ± 537.36 | 79.96 ± 231.15 | 4.721 ± 9.096 | 0.277 ± 0.059 | 0.983 ± 0.026 | 15 |
+| Mean-variance (ALD) | 40.01 ± 130.66 | 54.19 ± 177.56 | 24.52 ± 76.18 | 2.336 ± 3.002 | 0.252 ± 0.063 | 0.981 ± 0.029 | 15 |
+| Analytical SDE (Gaussian) | 1.54 ± 0.30 | 1.69 ± 0.09 | 1.68 ± 0.23 | 1.705 ± 0.118 | 0.303 ± 0.024 | 0.998 ± 0.003 | 5 |
+| Analytical SDE (Student-t) | 1.54 ± 0.30 | 1.69 ± 0.09 | 1.68 ± 0.23 | 0.920 ± 0.099 | 0.164 ± 0.043 | 0.940 ± 0.027 | 5 |
+| MDN (mixture) | 2.34 ± 1.77 | 2.99 ± 2.44 | 2.58 ± 0.85 | 1.743 ± 1.187 | 0.241 ± 0.062 | 0.986 ± 0.015 | 15 |
+| Random Forest | 1.74 ± 0.20 | 1.37 ± 0.13 | 1.17 ± 0.21 | — | — | — | 15 |
+| XGBoost | 2.00 ± 0.34 | 1.57 ± 0.34 | 1.33 ± 0.43 | — | — | — | 15 |
+
+**Stage 2 — autoregressive gap-fill**, scored on the RAW predictive band (the +σ_struct band is a coverage device and is reported separately). mean ± 1 SD over all (site, seed) units (3 seeds × sites; the calibrated Analytical variants are seed-independent, n = 1 per site). RMSE by hours-into-gap is the stability test (flat ⇒ the physics drift tracks the nightly decline; climbing/diverging ⇒ it does not); CRPS / PIT-KS / cov90 are given at 5 h+, the discriminating horizon. `—` = arm not rolled out.  **Seed 42 uses the LR-fixed re-run** (`reduce_on_plateau`, stepped on the TRAIN loss) for every gradient-trained arm, after seed 42 was found to diverge under the original constant-LR protocol; seeds 0 and 1 remain on the original protocol, so the ± for a given row mixes two training protocols and is provisional.
+

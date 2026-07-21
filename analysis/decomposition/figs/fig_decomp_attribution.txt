@@ -1,0 +1,1 @@
+Attribution of the 30-minute NEE-increment variance in the WienerNet-SS prediction: the analytic physics drift accounts for ~2% and the aleatoric noise ~98%, reflecting that 30-min nighttime flux change is measurement-noise-dominated rather than respiration-driven.

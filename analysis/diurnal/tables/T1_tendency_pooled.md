@@ -1,0 +1,6 @@
+| model          |   n_runs | rmse_dn          | mae_dn          | bias_dn          | corr_dn        | rmse_ref_dn     | sd_dn           | rmse_ob          | mae_ob          | corr_ob        | rmse_ref_ob     | sd_ob           | sd_pred          |
+|:---------------|---------:|:-----------------|:----------------|:-----------------|:---------------|:----------------|:----------------|:-----------------|:----------------|:---------------|:----------------|:----------------|:-----------------|
+| GT-k (primary) |       15 | 2.5178 ± 5.7831  | 0.1311 ± 0.2518 | -0.0444 ± 0.2590 | -0.083 ± 0.136 | 0.0044 ± 0.0002 | 0.0044 ± 0.0002 | 2.5196 ± 5.7824  | 0.1337 ± 0.2513 | -0.048 ± 0.085 | 0.0112 ± 0.0014 | 0.0112 ± 0.0014 | 2.5124 ± 5.7796  |
+| predicted-k    |       15 | 3.8560 ± 10.5614 | 0.1818 ± 0.4473 | 0.1725 ± 0.4460  | 0.045 ± 0.142  | 0.0044 ± 0.0002 | 0.0044 ± 0.0002 | 3.8585 ± 10.5602 | 0.1846 ± 0.4473 | 0.040 ± 0.076  | 0.0112 ± 0.0014 | 0.0112 ± 0.0014 | 3.8405 ± 10.5566 |
+
+Learned diurnal tendency head (K per 30-min step). _dn = vs the training anchor dTa_diurnal (the (site, month, hour) climatology of dTa); _ob = vs the observed dTa. rmse_ref_* is the trivial constant-mean predictor on the same target — the head only adds skill where rmse_* < rmse_ref_*. ± over all (site, seed) units.

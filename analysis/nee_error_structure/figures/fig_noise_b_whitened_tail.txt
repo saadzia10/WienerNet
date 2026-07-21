@@ -1,0 +1,1 @@
+Tail exceedance of the residual after whitening by each model's predicted σ. Both heads' whitened residuals remain heavier-tailed than their assumed noise law past 3 standard deviations, so the trained heads still under-disperse the extreme increments.

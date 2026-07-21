@@ -1,0 +1,15 @@
+site,target,metric,value,n
+great_fen,nee,mae,1.7521215677261353,8056
+great_fen,nee,rmse,2.8613784313201904,8056
+great_fen,nee,bias,-0.24460412561893463,8056
+great_fen,nee,r2,-0.124886155128479,8056
+great_fen,nee,mmd,0.05893405005348595,8056
+great_fen,nee,kl,0.04349494994442625,8056
+great_fen,nee,wasserstein,0.4460923149525128,8056
+great_fen,nee_mean,mae,1.179583191871643,8056
+great_fen,nee_mean,rmse,1.8922998905181885,8056
+great_fen,nee_mean,bias,-0.24997757375240326,8056
+great_fen,nee_mean,r2,0.5080307722091675,8056
+great_fen,nee_mean,mmd,0.027647241536898567,8056
+great_fen,nee_mean,kl,0.03489800496730929,8056
+great_fen,nee_mean,wasserstein,0.2548453323089896,8056

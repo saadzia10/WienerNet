@@ -1,0 +1,28 @@
+### Stage 1 (distributional) — all sites (5 towers, including the Redmere-1 OOD stress)
+
+| Model / ablation | CRPS | RMSE | cov90 | sharp90 | PIT-KS | n |
+|---|---|---|---|---|---|---|
+| WienerNet-SS (ALD, primary) | 0.770 ± 0.202 | 3.08 ± 4.17 | 0.796 ± 0.132 | 4.17 ± 3.54 | 0.101 ± 0.113 | 25 |
+| WienerNet-SS (Gaussian) | 1.412 ± 2.794 | 60.09 ± 267.60 | 0.858 ± 0.148 | 12.51 ± 36.68 | 0.138 ± 0.119 | 25 |
+| WienerNet-SS (beta-NLL) | 1.519 ± 2.876 | 79.49 ± 247.42 | 0.857 ± 0.116 | 14.32 ± 37.81 | 0.132 ± 0.075 | 25 |
+| WienerNet-SS (Student-t) | 1.092 ± 1.462 | 31.20 ± 111.11 | 0.778 ± 0.151 | 8.25 ± 19.94 | 0.117 ± 0.124 | 25 |
+| WienerNet-SS (mixture) | 0.722 ± 0.129 | 3.17 ± 4.25 | 0.852 ± 0.062 | 4.07 ± 1.39 | 0.091 ± 0.070 | 25 |
+| WienerNet-SS (+residual) | 1.279 ± 1.626 | 67.03 ± 190.17 | 0.810 ± 0.143 | 13.78 ± 29.57 | 0.099 ± 0.102 | 25 |
+| WienerNet-SS (state-space) | 1.414 ± 2.188 | 93.17 ± 329.32 | 0.819 ± 0.122 | 16.38 ± 39.62 | 0.093 ± 0.076 | 25 |
+| WienerNet-SS (given-diurnal, Wiener) | 0.904 ± 0.844 | 48.49 ± 173.79 | 0.811 ± 0.099 | 7.36 ± 15.52 | 0.079 ± 0.043 | 25 |
+| WienerNet-SS (given-diurnal, state-sp) | 1.114 ± 1.528 | 63.28 ± 195.55 | 0.828 ± 0.090 | 11.27 ± 27.72 | 0.077 ± 0.043 | 25 |
+| WienerNet-SS (predicted-k) | 1.214 ± 1.827 | 101.46 ± 344.90 | 0.765 ± 0.248 | 12.24 ± 33.22 | 0.132 ± 0.201 | 25 |
+| Neural SDE (Gaussian) | 1.852 ± 3.036 | 80.64 ± 238.25 | 0.878 ± 0.060 | 13.75 ± 30.75 | 0.126 ± 0.070 | 25 |
+| Neural SDE (Student-t) | 2.603 ± 3.938 | 184.75 ± 394.76 | 0.819 ± 0.092 | 26.04 ± 48.22 | 0.093 ± 0.066 | 25 |
+| Neural SDE (ALD) | 1.198 ± 1.394 | 67.90 ± 232.10 | 0.824 ± 0.119 | 10.54 ± 23.62 | 0.091 ± 0.083 | 25 |
+| Mean-variance (Gaussian) | 1.602 ± 2.920 | 24.56 ± 68.13 | 0.878 ± 0.052 | 5.14 ± 2.67 | 0.124 ± 0.045 | 25 |
+| Mean-variance (Student-t) | 1.183 ± 1.146 | 16.39 ± 33.09 | 0.828 ± 0.062 | 4.16 ± 2.58 | 0.093 ± 0.042 | 25 |
+| Mean-variance (ALD) | 0.998 ± 0.840 | 10.77 ± 22.89 | 0.852 ± 0.059 | 4.27 ± 1.47 | 0.077 ± 0.050 | 25 |
+| Analytical SDE (Gaussian) | 0.751 ± 0.110 | 2.22 ± 0.16 | 0.926 ± 0.030 | 5.07 ± 0.29 | 0.162 ± 0.059 | 5 |
+| Analytical SDE (Student-t) | 0.702 ± 0.158 | 1.65 ± 0.29 | 0.729 ± 0.069 | 1.87 ± 0.39 | 0.114 ± 0.034 | 5 |
+| MDN (mixture) | 0.940 ± 0.534 | 9.92 ± 17.24 | 0.844 ± 0.071 | 4.82 ± 2.98 | 0.084 ± 0.046 | 25 |
+| Random Forest | — | 1.52 ± 0.12 | — | — | — | 25 |
+| XGBoost | — | 1.73 ± 0.32 | — | — | — | 25 |
+
+**Stage 1 — one-step predictive law.** mean ± 1 SD over all (site, seed) units (5 seeds × sites; calibrated seed-independent models show a bare value). CRPS and RMSE lower = better; cov90 nominal = 0.90; sharp90 = mean 90% interval width (µmol m⁻² s⁻¹); PIT-KS 0 = perfectly calibrated. Trees emit no predictive distribution (RMSE only).  **Uniform protocol** (`outputs/ss_full5`): every gradient-trained arm was re-trained under one identical schedule — `reduce_on_plateau` stepped on the held-out-site loss, no validation split carved from the training sites — so the ± is a genuine seed spread and not a mixture of protocols. Because the LR schedule reacts to the held-out site, model *selection* is test-informed; reported metrics are nonetheless taken from `last.pth`.
+
