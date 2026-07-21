@@ -1,8 +1,7 @@
 # Increment-based Euler–Maruyama SDE — VERSION B (no residual, learned-mean noise).
 #   dNEE = f_phys*dt + (mu(z) + eps*sigma(z))*sqrt(dt) ;  nee_pred = NEE_t + dNEE
-# The noise keeps a learned mean so it absorbs the physics misfit — the old
-# "noise learns the misfit" behaviour, in increment form. The honest baseline
-# that shows what noise-as-misfit costs. Pair with loss=increment.
+# The noise keeps a learned mean so it absorbs the physics misfit.
+# Pair with loss=increment.
 variant: piae_increment
 
 latent_dim: 32
@@ -36,13 +35,13 @@ physics_k_source: predicted
 # null disables. Inert for real drift (~0.17/min); prevents catastrophic amplification.
 drift_clamp: 1.0
 
-# Terminal noise-model options (Workstream F). asymmetry adds ALD log_kappa (or set
+# Terminal noise-model options. asymmetry adds ALD log_kappa (or set
 # loss=nll_ald); mixture_components>1 = zero-mean mixture noise head on the SDE.
 noise_asymmetry: false
 noise_mixture_components: 1
 # Physics-anchored heteroscedastic scale: sigma *= softplus(a)+softplus(b)*Reco.
-# Ties the aleatoric noise std to the respiration magnitude (fixes the L1/ALD
-# high-flux under-coverage). null/false = free sigma head only.
+# Ties the aleatoric noise std to the respiration magnitude.
+# null/false = free sigma head only.
 noise_physics_scale: false
 noise_physics_scale_b: 0.25   # init Reco->sigma coupling softplus(b) when noise_physics_scale=true
 

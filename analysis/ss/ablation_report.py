@@ -1,15 +1,14 @@
 #!/usr/bin/env python
-"""Comprehensive ablation report for the final WienerNet-SS pass.
+"""Ablation report for WienerNet-SS.
 
-Two things a manuscript needs:
+Two tables:
   A. WienerNet-SS ablation axes vs the PRIMARY (learned-diurnal, known-k, single-Wiener,
      no-residual, ALD): noise law, residual on/off, diurnal tendency source, likelihood family
      (Gaussian / beta-NLL / Student-t / ALD / mixture), and parameter head (known vs predicted).
-  B. FAIR comparison — architecture x loss-family: WienerNet-SS vs the process baselines
-     (NeuralSDE, mean-variance, Analytical, MDN) all on the SAME likelihood family, so a skill
-     difference reflects architecture, not the noise objective.
+  B. Architecture x loss-family grid: WienerNet-SS vs the process baselines (NeuralSDE,
+     mean-variance, Analytical, MDN) on the SAME likelihood family.
 
-Reads outputs/ss_loso/ (all WienerNet-SS ablations + the Student-t/ALD baselines) and
+Reads outputs/ss_loso/ (WienerNet-SS ablations + the Student-t/ALD baselines) and
 outputs/final_loso/ (the Gaussian baselines + the Student-t MDN + trees). Writes CSVs to
 analysis/ss/. Mean +/- std over the 3 seeds; per held-out site + cross-site.
 """
@@ -51,7 +50,7 @@ def read_prob(run):
 
 
 def read_proc(run):
-    """Stage-1 process-consistency diagnostics (§1.7) from process_consistency.json: standardised-
+    """Stage-1 process-consistency diagnostics from process_consistency.json: standardised-
     residual whiteness (mean_z, std_z, lag-1 ACF), drift-check R², noise-shape moments + energy
     distance, and the diffusion variance-vs-scale ratio at the longest window."""
     p = os.path.join(run, "metrics", "process_consistency.json")
@@ -174,9 +173,6 @@ def cell_stat(parent, tmpl, metric, sites=None):
     return np.array(vals)
 
 
-# Redmere 1 is a corrupted-Tau OOD artifact (see docs/redmere1_blowup_analysis.md); the
-# "clean" view over the four in-distribution sites separates architecture skill from the
-# single-site OOD blow-up that dominates the 5-site mean and its variance.
 SITES_CLEAN = [s for s in SITES if s != "redmere_1"]
 
 
@@ -191,10 +187,7 @@ def main():
         r = dfA[dfA.model == m]
         print(f"{m:<44}{ms(dfA,m,'crps'):>14}{ms(dfA,m,'cov90'):>14}{ms(dfA,m,'rmse',2):>13}{len(r):>4}")
 
-    # full Stage-1 metric set — CLEAN 4 sites, MEDIAN. The unbounded metrics (NLL, std_z) are
-    # dominated at their 5-site MEAN by the Redmere-1 OOD blow-up (e.g. primary NLL 4.4e6 there, so
-    # the 5-site mean is meaningless); the clean-site median is the honest summary. Every per-run
-    # value (all sites/seeds) is in ablation_wnss_long.csv, so any aggregate is recomputable.
+    # full Stage-1 metric set — CLEAN 4 sites, MEDIAN
     clean = dfA[dfA.site != "redmere_1"]
     def mnc(m, col, f=2):
         v = clean[clean.model == m][col].dropna() if col in clean.columns else pd.Series(dtype=float)
@@ -224,8 +217,7 @@ def main():
     with open(os.path.join(OUT, "ablation_fair_crps.csv"), "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=["architecture"] + FAMILIES); w.writeheader(); w.writerows(csv_rows)
 
-    # Same CRPS table over the 4 in-distribution sites (Redmere 1 excluded) — separates
-    # architecture skill from the corrupted-Tau OOD blow-up that dominates the 5-site mean.
+    # Same CRPS table over the 4 in-distribution sites (Redmere 1 excluded)
     print("\n---- CRPS by architecture × loss family, REDMERE 1 EXCLUDED (4 clean sites) ----")
     print(hdr); print("-" * len(hdr))
     for arch, fams in FAIR.items():

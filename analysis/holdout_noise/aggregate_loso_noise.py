@@ -1,12 +1,12 @@
 #!/usr/bin/env python
-"""Aggregate the leave-one-site-out terminal-noise sweep (Workstream F, coverage fix).
+"""Aggregate the leave-one-site-out terminal-noise sweep.
 
-Compares our increment SDE with each terminal noise head — ALD (beta=0.5) and the
+Compares the increment SDE with each terminal noise head — ALD (beta=0.5) and the
 3-component Gaussian mixture, each with and without the residual drift head — against
-the no-physics MDN baseline, per held-out site, over seeds. Reads the honest ENSEMBLE
-scores (100-pass) from each run's metrics/probabilistic.json + calibration.json.
+the no-physics MDN baseline, per held-out site, over seeds. Reads the ensemble
+(100-pass) scores from each run's metrics/probabilistic.json + calibration.json.
 
-Outputs (repo, per the figures-in-repo convention):
+Outputs:
   analysis/holdout_noise/loso_noise_summary.csv   — per (model, site) mean+/-std
   analysis/holdout_noise/figures/loso_noise_crps.png
   analysis/holdout_noise/figures/loso_noise_cov90.png

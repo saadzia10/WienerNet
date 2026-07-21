@@ -1,11 +1,10 @@
 #!/usr/bin/env python
-"""Generate manuscript figures for the residual error-structure report.
+"""Generate the residual error-structure figures.
 
-Read-only w.r.t. the codebase. Follows the repo plot-generation conventions
-(see CLAUDE.md): one standalone vector (PDF) file per plot, no titles,
-unit-bearing axis labels, print-legible fonts, tight bbox, a consistent
-colorblind-safe (Okabe-Ito) palette, and a draft-caption `<name>.txt` sidecar
-per figure. LaTeX subfigure/subcaption composes the panels and adds A/B/C/D.
+Follows the repo plot-generation conventions: one standalone vector (PDF) file
+per plot, no titles, unit-bearing axis labels, print-legible fonts, tight bbox,
+a consistent colorblind-safe (Okabe-Ito) palette, and a draft-caption
+`<name>.txt` sidecar per figure.
 """
 from __future__ import annotations
 import glob, os, warnings

@@ -1,5 +1,5 @@
 """Held-out-site (great_fen) data-efficiency curves: physics vs no-physics.
-Leakage-free (last.pth, no test-dependent scheduler). k=1, stabilized Student-t.
+k=1, stabilized Student-t.
 """
 import json, numpy as np, matplotlib.pyplot as plt
 from pathlib import Path

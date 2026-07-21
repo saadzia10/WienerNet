@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-"""Exploratory / read-only. Is the physics residual (NEE_obs - NEE_phys)
-heteroscedastic, and is it Gaussian or double-exponential (Laplace)?
+"""Test whether the physics residual (NEE_obs - NEE_phys) is heteroscedastic,
+and whether it is Gaussian or double-exponential (Laplace).
 
 Background (Hollinger & Richardson 2005; Richardson et al. 2006, 2008):
  * The random flux error is NOT Gaussian — it is double-exponential (Laplace),
@@ -17,7 +17,7 @@ error. So residual = NEE_obs - Reco conflates random measurement error with
 model structural error; we separate the systematic (mean) part from the random
 (scatter) part where it matters.
 
-Standalone: does NOT import wienernet. Run from repo root:
+Run from repo root:
     conda activate pytorch
     python residual_error_structure.py
 """

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-"""Decomposition-rationality figures (one standalone vector file per plot; manuscript conventions).
+"""Decomposition figures (one standalone vector file per plot).
 
-Produces three figures on the in-distribution leave-one-site-out test sets:
+Produces three figures on the leave-one-site-out test sets:
   fig_decomp_attribution              — 30-min increment variance split (physics drift vs noise)
   fig_decomp_noise_vs_temperature     — mean one-step residual vs air temperature (noise cleanliness)
   fig_decomp_drift_physicality        — model drift rate vs the analytic physics drift rate

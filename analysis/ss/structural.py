@@ -1,24 +1,19 @@
 #!/usr/bin/env python
-"""Structural-error handling for the gap-fill band (NEXT-2 fix).
+"""Structural-error handling for the gap-fill band.
 
-The gap band under-covered because the dominant gap uncertainty is STRUCTURAL, not
-aleatoric: the physics level Reco(T_air) misses the soil-temperature/moisture drivers of
-respiration, so the observed flux scatters around the reconstructed level by ~1.1 more than
-the measurement noise the aleatoric heads were trained on. Two complementary fixes here:
+The physics level Reco(T_air) omits the soil-temperature/moisture drivers of respiration, so
+the observed flux scatters around the reconstructed level by more than the measurement noise
+the aleatoric heads model. Two components are provided:
 
-  A. SHRINK the structural error  — augment the reconstruction MEAN with soil temperature
-     (Tsoil1, the only soil driver available at all five sites; soil moisture/VWC is absent
-     at Woodwalton so it cannot be the universal lever). NEE ~ a + b*Reco(Ta) + c*Tsoil1.
+  A. Reconstruction MEAN augmented with soil temperature (Tsoil1, the soil driver available
+     at all five sites): NEE ~ a + b*Reco(Ta) + c*Tsoil1.
 
-  B. COVER the remainder          — add an explicit structural-variance term sigma_struct to
-     the band, estimated OUT-OF-SAMPLE (on the training sites' level residuals) and folded in
-     in quadrature. It is FLAT in gap-time (a persistent missing-driver offset, not a random
-     walk), unlike the process term which grows as sqrt(t). To avoid double-counting the
-     measurement noise the aleatoric head already carries, sigma_struct^2 = max(0, Var(level
-     residual) - sigma_meas^2).
+  B. An explicit structural-variance term sigma_struct added to the band in quadrature. It is
+     FLAT in gap-time (a persistent missing-driver offset), unlike the process term which
+     grows as sqrt(t). To avoid double-counting the measurement noise the aleatoric head
+     already carries, sigma_struct^2 = max(0, Var(level residual) - sigma_meas^2).
 
-Everything is estimated on TRAIN (the sites the model saw) and applied to the held-out TEST
-site, so the reported band is a genuine out-of-sample uncertainty, not fit to the scored rows.
+Both are estimated on TRAIN (the sites the model saw) and applied to the held-out TEST site.
 """
 from __future__ import annotations
 import numpy as np

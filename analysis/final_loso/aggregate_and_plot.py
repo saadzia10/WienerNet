@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-"""Aggregate the final leave-one-site-out sweep and render manuscript-grade figures.
+"""Aggregate the leave-one-site-out sweep and render its figures.
 
-Reads outputs/final_loso/<label>_<site>_s<seed>/, maps internal labels to manuscript
-display names, and produces per-site probabilistic-skill figures with error bars over
+Reads outputs/final_loso/<label>_<site>_s<seed>/, maps internal labels to display
+names, and produces per-site probabilistic-skill figures with error bars over
 seeds. Robust to partial results (skips missing runs). Colourblind-safe (Okabe-Ito).
 
 Outputs -> analysis/final_loso/
@@ -59,7 +59,7 @@ GROUP_COLOR = {"wienernet": "#0072B2", "ablation": "#56B4E9", "reference": "#999
 LADDER = ["abl_mmdnoise", "abl_gaussian", "abl_beta", "abl_studentt",
           "abl_laplace_b0", "wienernet_laplace", "wienernet_mixture"]
 
-# curated headline set for the main physics-vs-no-physics figures (readable)
+# model set used in the main figures
 MAIN = ["wienernet_laplace", "wienernet_mixture", "comp_mdn", "comp_meanvar",
         "comp_neuralsde", "prior_analytical", "abl_determin"]
 
@@ -166,8 +166,8 @@ def write_csvs(prob, point):
 
 
 def headline_gaps():
-    """Per-site paired CRPS gap (WienerNet head - MDN) using matched seeds — the
-    headline physics-vs-black-box claim. Writes headline_gaps.csv and prints it."""
+    """Per-site paired CRPS gap (WienerNet head - MDN) using matched seeds.
+    Writes headline_gaps.csv and prints it."""
     rows = []
     for head in ("wienernet_laplace", "wienernet_mixture"):
         for site in SITES:
@@ -286,7 +286,7 @@ def fig_full_ranked(prob, metric="crps", nominal=None,
             ax.set_xscale("symlog", linthresh=1.0)
             ax.set_xlim(left=0)
             ax.set_xlabel(xlabel + " (log)", fontsize=8.5)
-            # annotate the big blow-ups with their value
+            # annotate the out-of-range values
             for yi, mv in zip(y, means):
                 if mv and mv > 6:
                     ax.text(mv, yi, f" {mv:.0f}", va="center", fontsize=7, color="#333")
@@ -356,8 +356,8 @@ def fig_reliability(prob, sites=("woodwalton", "redmere_1")):
 
 def fig_sharpness_calibration(prob, sharp_cap=10.0):
     """Scatter: sharpness (mean 90% interval width) vs |cov90 - 0.90|, averaged over sites.
-    Zoomed to the competitive region; OOD-exploding models (interval width > cap) are
-    listed off-chart rather than stretching the axis. Labels de-conflicted by nudging."""
+    Models with mean interval width above `sharp_cap` are listed off-chart rather than
+    stretching the axis. Labels de-conflicted by nudging."""
     plt = setup_mpl()
     pts, off = [], []
     for label, disp, grp in MODELS:
@@ -395,7 +395,7 @@ def fig_sharpness_calibration(prob, sharp_cap=10.0):
     ax.set_ylabel("miscalibration  |coverage − 0.90|  (smaller = better)")
     ax.set_title("Sharpness vs calibration (averaged over held-out sites)\nbottom-left = sharp AND calibrated")
     if off:
-        note = "off-chart (interval width > %g, OOD blow-up):\n" % sharp_cap + \
+        note = "off-chart (interval width > %g):\n" % sharp_cap + \
                "\n".join(f"  {d} — width {sh:.0f}" for d, _, sh, _ in sorted(off, key=lambda t: -t[2]))
         ax.text(0.98, 0.97, note, transform=ax.transAxes, ha="right", va="top", fontsize=8,
                 color="#B33", bbox=dict(boxstyle="round", fc="white", ec="#ccc", alpha=0.9))
@@ -414,7 +414,7 @@ def main():
     write_csvs(prob, point)
     headline_gaps()
     try:
-        # headline (curated) grouped-bar figures
+        # grouped-bar figures
         fig_metric_by_site(prob, "crps", "ensemble CRPS (lower better)",
                            "Predictive skill on held-out sites (headline models)",
                            "fig_crps_by_site", order=[l for l in MAIN if any(prob[l][s] for s in SITES)],

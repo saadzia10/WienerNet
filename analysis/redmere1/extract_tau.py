@@ -5,11 +5,8 @@
     (`build_dataloaders` with the run's config), i.e. nighttime + every driver non-NaN.
     These are exactly the rows the model saw / was tested on.
   * RAW basis    -> `tau_by_site_raw.json` / `.npz`: the site parquets with only the
-    nighttime filter (Rg < threshold) and a Tau-NaN drop, i.e. *before* the pipeline's
-    driver-completeness dropna removes the most extreme Tau rows.
-
-The two differ substantially at Redmere 1 (raw tails reach ~1e5, model-basis tails ~5e3)
-because the corrupted-Tau rows often also miss another driver.
+    nighttime filter (Rg < threshold) and a Tau-NaN drop, i.e. before the pipeline's
+    driver-completeness dropna.
 """
 from __future__ import annotations
 import os, sys, json

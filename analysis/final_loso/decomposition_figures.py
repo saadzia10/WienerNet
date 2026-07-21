@@ -1,20 +1,20 @@
 #!/usr/bin/env python
-"""Drift / noise decomposition figures — WienerNet's interpretability edge.
+"""Drift / noise decomposition figures.
 
 Reads the per-row predictions of trained runs in outputs/final_loso/ (no retraining)
-and renders four manuscript figures that a black box / tree cannot produce:
+and renders four figures:
 
-  1. fig_decomp_night      per-night decomposition: observed NEE, the physics DRIFT
-                           mean, and the calibrated aleatoric NOISE band; a no-physics
-                           panel beside it (one opaque predictive blob) for contrast.
-  2. fig_drift_physics     the drift is a physical instrument — reconstructed
-                           respiration Reco(T) vs the binned observed nighttime
-                           respiration, and the predicted temperature tendency vs observed.
-  3. fig_noise_calibration the noise is calibrated + heteroscedastic — predicted noise
-                           std vs empirical residual std across flux bins, vs the
-                           measured SD ≈ 0.24 + 0.30·Reco.
-  4. fig_variance_aggregation  drift (systematic) carries the weekly/monthly flux BUDGET
-                           while the noise cancels ~1/√N — the carbon-budget payoff.
+  1. fig_decomp_night      per-night decomposition: observed NEE, the physics drift
+                           mean, and the aleatoric noise band; alongside the
+                           no-physics model's single predictive band.
+  2. fig_drift_physics     reconstructed respiration Reco(T) vs the binned observed
+                           nighttime respiration, and the predicted temperature
+                           tendency vs observed.
+  3. fig_noise_calibration predicted noise std vs empirical residual std across flux
+                           bins, against the measured SD ≈ 0.24 + 0.30·Reco.
+  4. fig_variance_aggregation  aggregated (weekly/monthly) predicted vs observed flux,
+                           and relative uncertainty of the summed flux vs aggregation
+                           window with a 1/√N reference.
 
 Outputs -> analysis/final_loso/figures_decomp/
 """
@@ -28,12 +28,12 @@ ROOT = os.path.dirname(os.path.dirname(HERE))
 SWEEP = os.path.join(ROOT, "outputs", "final_loso")
 FIG = os.path.join(HERE, "figures_decomp")
 sys.path.insert(0, HERE)
-from aggregate_and_plot import setup_mpl  # reuse the publication style
+from aggregate_and_plot import setup_mpl
 
 TREF, T0 = 10.0, 46.02
-WIENER = "wienernet_laplace"      # the interpretable model
-BLACKBOX = "comp_mdn"            # the no-decomposition contrast
-SITE = "woodwalton"               # clean physics-win held-out site
+WIENER = "wienernet_laplace"
+BLACKBOX = "comp_mdn"
+SITE = "woodwalton"
 SEED = 0
 Z = 1.6449                        # 90% two-sided normal quantile for the band
 
@@ -65,8 +65,8 @@ def _save(fig, name):
 
 # ---------------------------------------------------------------- 1. per-night
 def _select_clean_nights(w, k=3, min_n=10):
-    """Nights where the physics explains the structure (high corr NEE~Reco(T)),
-    with moderate outliers — the illustrative cases, not the noisiest."""
+    """Select up to k nights with at least min_n steps, ranked by corr(NEE, Reco(T))
+    descending and then by the 90th-percentile absolute residual ascending."""
     w = w.copy()
     w["reco"] = reco(w["Ta"].values, w["E0"].values, w["rb"].values)
     w["absres"] = (w["NEE"] - w["reco"]).abs()
@@ -107,7 +107,7 @@ def fig_decomp_night(plt):
         if j == 0:
             ax.set_ylabel("NEE  (µmol m⁻² s⁻¹)\n— WienerNet decomposition —", fontsize=10)
             ax.legend(fontsize=8.5, loc="best")
-        # bottom: black box — a single opaque predictive band, no signal/noise split
+        # bottom: black box predictive band
         gb = bb[bb["night"] == nid].reset_index(drop=True)
         if len(gb):
             hb = (pd.to_datetime(gb["DateTime"]) - pd.to_datetime(gb["DateTime"]).iloc[0]).dt.total_seconds() / 3600
@@ -200,7 +200,7 @@ def fig_variance_aggregation(plt):
     obs, mean, sd = w["NEE_next"].values, w["pred_nee_mean"].values, w["pred_nee_std"].values
     df = pd.DataFrame({"t": t, "obs": obs, "mean": mean, "var": sd ** 2})
     fig, (a1, a2) = plt.subplots(1, 2, figsize=(13, 5.2))
-    # A: predicted vs observed aggregated flux (drift carries the budget)
+    # A: predicted vs observed aggregated flux
     for res, lab, c in [("W", "weekly", "#56B4E9"), ("MS", "monthly", "#0072B2")]:
         gp = df.set_index("t").resample(res).agg(obs=("obs", "mean"), mean=("mean", "mean"))
         gp = gp.dropna()

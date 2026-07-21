@@ -60,8 +60,7 @@ train_subsample_seed: 0
 
 # Held-out validation split carved from the TRAINING sites, grouped by whole nights
 # (site, window_id). When set, best.pth selection and the LR scheduler monitor THIS
-# split instead of the held-out test site -- i.e. no test leakage in model selection.
-# null (default) = legacy behaviour: the test loader is used as the val monitor.
+# split. null = the test loader is used as the val monitor.
 val_frac: null
 val_split_seed: 0
 

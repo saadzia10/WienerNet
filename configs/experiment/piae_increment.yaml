@@ -1,13 +1,10 @@
 # @package _global_
 #
-# Increment-SDE VERSION B — non-residual, learned-mean noise (honest baseline).
+# Increment-SDE VERSION B — non-residual, learned-mean noise.
 #
 #   dNEE = f_phys*dt + (mu(z) + eps*sigma(z))*sqrt(dt) ,  NEE_{t+1} = NEE_t + dNEE
 # No residual head; the noise keeps a learned mean mu(z) so it absorbs the
-# physics misfit — the old "noise learns the misfit" behaviour, reproduced in
-# the increment formulation. Compare against version A to show the misfit moving
-# from the noise (B) into the named residual (A): report corr(noise, Ta) for B
-# vs corr(residual, Ta) for A.
+# physics misfit, in increment form.
 #
 # The mmd_noise prior is left at the default (gaussian, non-centred) so the noise
 # is allowed its learned mean.

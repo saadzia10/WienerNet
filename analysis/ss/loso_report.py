@@ -1,14 +1,13 @@
 #!/usr/bin/env python
 """WienerNet-SS multi-site generalisation report.
 
-Reads the ss_loso sweep (4 SS ablations x 5 held-out sites x 3 seeds) and the REUSED
-final_loso competing methods (MDN / Neural SDE / mean-var / analytical / RF / XGB), and asks
-the Task-1 question: do the Woodwalton wins hold across all five held-out sites?
+Reads the ss_loso sweep (SS ablations x 5 held-out sites x 3 seeds) and the final_loso
+competing methods (MDN / Neural SDE / mean-var / analytical / RF / XGB).
 
 Outputs (all under analysis/ss/):
   * loso_metrics_long.csv  — one row per (model, site, seed): CRPS, cov90/95, PIT-KS, RMSE
   * loso_summary.csv       — per (model, site): mean +/- std over seeds
-  * printed tables         — per-site headline comparison + cross-site means
+  * printed tables         — per-site comparison + cross-site means
 Probabilistic metrics (CRPS/coverage/PIT) come from metrics/probabilistic.json (ensemble);
 point RMSE from metrics/per_site.csv (torch) or metrics.json raw.nee.rmse (trees).
 """

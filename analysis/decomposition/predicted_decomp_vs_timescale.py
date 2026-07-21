@@ -1,22 +1,18 @@
 #!/usr/bin/env python
-"""How WienerNet-SS APPORTIONS its own predicted ΔNEE across its three heads, vs timescale.
+"""Decomposition of the WienerNet-SS predicted ΔNEE across its three heads, versus timescale.
 
-Complements `drift_vs_timescale.py` (which is MODEL-FREE — the true physics explanatory power). Here
-we take the MODEL's predicted increment and decompose ITS predictive variance into the three additive
-heads, rolled up over growing WITHIN-NIGHT windows (the regime the increment model actually integrates
-over; beyond a night the drift is the nightly Reco(T) reconstruction of drift_vs_timescale.py):
+The model's predicted increment is decomposed into its three additive heads, rolled up over growing
+within-night windows:
 
     predicted ΔNEE(t→t+k) = Σ f_phys·dt  +  Σ r·dt  +  Σ noise
                             └ physics drift ┘ └residual┘ └ noise ┘
 
-For each window length k we compute, pooled over the 4 in-distribution sites:
-  V_phys(k)  = Var over windows of the summed physics-drift increment  (coherent → grows ∝k²)
+For each window length k, pooled over 4 sites:
+  V_phys(k)  = Var over windows of the summed physics-drift increment
   V_resid(k) = Var over windows of the summed residual increment
-  V_noise(k) = mean accumulated aleatoric variance Σ σ²           (independent → grows ∝k)
-and plot each as a share of the total. The physics share should CLIMB with the window (the drift
-accumulates coherently as respiration declines), while the noise share falls (it averages down); a
-short-timescale residual correction falls too. This is the model's INTERNAL attribution — a check
-that its heads behave as a rational decomposition, not the model-free truth.
+  V_noise(k) = mean accumulated aleatoric variance Σ σ²
+each plotted as a share of the total. Writes figs/fig_predicted_shares_primary.pdf and
+figs/fig_predicted_shares_residual_variant.pdf.
 """
 from __future__ import annotations
 import os

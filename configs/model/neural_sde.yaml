@@ -9,9 +9,8 @@
 #   ΔNEE  = g(z)*dt + σ(z)*sqrt(dt)*eps ,  NEE_{t+1} = NEE_t + ΔNEE
 # Keeps the SDE dt/sqrt(dt) structure (unlike hetero_mlp) but replaces the physics
 # drift with a black box (unlike analytical_sde) and has no misfit decomposition
-# (unlike the full model). Substantiates the critique of purely data-driven neural
-# SDEs (black-box drift, under-estimated diffusion). Capacity matched to the main
-# model. Pair with loss=nll_gaussian (or loss=nll_student_t).
+# (unlike the full model). Capacity matched to the main model.
+# Pair with loss=nll_gaussian (or loss=nll_student_t).
 variant: neural_sde
 
 latent_dim: 32
@@ -22,5 +21,5 @@ activation: relu
 dt: 30.0
 
 # Soft bound on the drift rate (c*tanh(rate/c)), mirroring piae_increment's drift_clamp.
-# null = unbounded (original behaviour). Set to 1.0 for the clamp-controlled comparison.
+# null = unbounded. Set to 1.0 to bound the drift rate.
 drift_clamp: null

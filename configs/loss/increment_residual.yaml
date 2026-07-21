@@ -5,8 +5,7 @@
 # normalize_anchors=true divides each MSE term by its train-target variance, so
 # the raw-scale E0 anchor (~112±42) stops dominating and the tiny dTa/dNEE terms
 # stop vanishing. With it on, the weights below are all ~1.0 and genuinely trade
-# the terms off. (Seed-0 sweep: this took mse_nee 2.98 -> 2.66 and restored a
-# faithful dTemp. See docs/increment_sde_model_plan.md.)
+# the terms off.
 normalize_anchors: true
 
 weights:

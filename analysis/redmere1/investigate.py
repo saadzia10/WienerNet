@@ -1,21 +1,17 @@
 #!/usr/bin/env python
-"""Root-cause investigation: why do the learned-noise models blow up on Redmere 1?
+"""Diagnostics for the learned-noise models on the Redmere 1 holdout.
 
-Runs three measurements and writes a JSON + prints tables:
+Runs three measurements, writes `investigate.json` and prints tables:
 
   (1) DRIFT vs NOISE localisation — for a redmere_1-holdout run, the deterministic mean
-      (nee_mean) vs the sampled prediction (nee), on the in-distribution TRAIN pool vs the
-      held-out Redmere 1 TEST set. Shows the drift is stable and the noise sample explodes.
+      (nee_mean) vs the sampled prediction (nee), on the TRAIN pool vs the held-out
+      Redmere 1 TEST set.
 
-  (2) NOISE-SCALE explosion — the predicted sigma_eff (and state-space sigma_meas / sigma_proc)
-      distribution (p50/p99/max) on TRAIN vs Redmere 1 TEST. Shows the aleatoric scale head
-      extrapolates to huge values out of distribution, and the state-space process term
-      (sigma_proc^2 * dt) amplifies it.
+  (2) NOISE SCALE — the predicted sigma_eff (and state-space sigma_meas / sigma_proc)
+      distribution (p50/p99/max) on TRAIN vs Redmere 1 TEST.
 
   (3) DRIVER out-of-distribution — per-driver standardised shift of Redmere 1 vs the training
-      pool, plus a Mahalanobis distance, to show WHICH inputs are OOD (temperature is NOT; the
-      turbulence / energy-balance drivers are), i.e. why the *learned* heads extrapolate while
-      the *physics* drift (a function of temperature) does not.
+      pool, plus a Mahalanobis distance of the test mean from the training distribution.
 """
 from __future__ import annotations
 import os, sys, json

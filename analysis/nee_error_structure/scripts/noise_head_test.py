@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-"""Does the trained noise head reproduce (i) the ~0.30 flux-slope
-(heteroscedasticity) and (ii) the Laplace tail — or default to Gaussian-
-homoscedastic? Uses the surviving nll_bakeoff predictions (student_t, beta).
+"""Test whether a trained noise head reproduces (i) the ~0.30 flux-slope
+(heteroscedasticity) and (ii) the Laplace tail, for the student_t and beta
+NLL runs.
 
-Read-only. The model is an INCREMENT SDE: NEE_{t+1} = NEE_t + f*dt + noise*sqrt(dt).
+The model is an INCREMENT SDE: NEE_{t+1} = NEE_t + f*dt + noise*sqrt(dt).
  * predicted per-min sigma  = pred_noise_stds        (the noise-head scale)
  * predicted increment scale s = sigma * sqrt(dt)     (t-scale / Gaussian-sigma)
  * increment residual to cover = (NEE_next - NEE) - f*dt

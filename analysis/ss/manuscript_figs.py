@@ -1,32 +1,27 @@
 #!/usr/bin/env python
-"""Manuscript figures for WienerNet, matched one-to-one to analysis/ss/manuscript_tables.
+"""Figures for WienerNet, matched one-to-one to analysis/ss/manuscript_tables.
 
-Every figure reports the FULL 5-site leave-one-site-out sweep (the out-of-distribution Redmere-1
-fold included) over the 5 seeds of the uniform-protocol sweep (outputs/ss_full5) — the same runs
-`manuscript_tables.py --full5` tabulates. There are no clean-4 views here; those live in the tables.
+Every figure reports the full 5-site leave-one-site-out sweep over the 5 seeds of the
+uniform-protocol sweep (outputs/ss_full5) — the same runs `manuscript_tables.py --full5`
+tabulates.
 
-Model selection (fixed, and stated in every caption):
-  * WienerNet is shown at its primary likelihood (ALD) and its runner-up (mixture); the two tie on
-    CRPS and sit at opposite ends of the sharpness/calibration frontier.
-  * Every competing family is shown at ITS OWN best likelihood, chosen by Stage-1 CRPS on the
-    4 in-distribution ("clean") sites — i.e. each baseline is picked at its in-distribution best
-    and then scored here on all 5, so no baseline is handicapped by the OOD fold it is about to
-    be judged on.
-  * Trees are represented by Random Forest (the better of RF/XGB on point RMSE). It is rolled out
-    autoregressively like every other arm — its own prediction is fed back as the next step's
-    input — so the Stage-2 comparison is like-for-like. It emits no predictive distribution, so it
-    appears only in the RMSE-based figures.
+Model selection:
+  * WienerNet is shown at two likelihoods: ALD and mixture.
+  * Every competing family is shown at its own best likelihood, chosen by Stage-1 CRPS on the
+    4 in-distribution sites, then scored here on all 5.
+  * Trees are represented by Random Forest, rolled out autoregressively like every other arm
+    (its own prediction fed back as the next step's input). It emits no predictive
+    distribution, so it appears only in the RMSE-based figures.
 
-The Analytical SDE is omitted from the three Stage-2 figures by default (it is a calibrated physics
-prior, not a competing learned model); pass --with-analytical-stage2 to draw it there. It is always
-shown in Stage 1, where it is the reference point. Captions adapt to the setting automatically.
+The Analytical SDE is omitted from the three Stage-2 figures by default; pass
+--with-analytical-stage2 to draw it there. It is always shown in Stage 1. Captions adapt to
+the setting automatically.
 
-Because a single OOD fold supplies the whole right tail, the all-5 distributions are strongly
-skewed: the CRPS figures therefore plot every (site, seed) unit on a log axis rather than a
-symmetric mean ± SD bar, which would run negative on a positive-only quantity.
+The all-5 distributions are strongly right-skewed, so the CRPS figures plot every (site, seed)
+unit on a log axis rather than a symmetric mean ± SD bar.
 
 Numbers come from the same collectors that build the tables (manuscript_tables.collect_stage1 /
-collect_stage2), so figures and tables can never drift apart.
+collect_stage2).
 
 Figures (one standalone PDF + .txt draft caption each, in analysis/ss/figs/):
   Stage 1 — one-step predictive law
@@ -36,7 +31,7 @@ Figures (one standalone PDF + .txt draft caption each, in analysis/ss/figs/):
     fig_stage1_crps_by_site           CRPS broken out per held-out site
     fig_stage1_coverage_by_site       coverage broken out per held-out site
   Stage 2 — autoregressive gap-fill
-    fig_stage2_gapfill_rmse           rollout RMSE vs hours into gap (log scale: the OOD blow-ups)
+    fig_stage2_gapfill_rmse           rollout RMSE vs hours into gap (log scale)
     fig_stage2_crps_h5                5 h+ band CRPS per (site, seed) unit + mean
     fig_stage2_gapfill_rmse_by_site   5 h+ rollout RMSE broken out per held-out site
 """
@@ -57,8 +52,8 @@ import manuscript_tables as MT  # noqa: E402
 from manuscript_tables import collect_stage1, collect_stage2, SITES, SITE_LABEL  # noqa: E402
 
 # Read the uniform-protocol 5-seed sweep (outputs/ss_full5, seeds 0-4), exactly as
-# `manuscript_tables.py --full5` does — the figures must aggregate the same runs over the same
-# seeds as the tables. Flipping these module globals is the same switch main(full5=True) throws.
+# `manuscript_tables.py --full5` does. Flipping these module globals is the same switch
+# main(full5=True) throws.
 MT.USE_FULL5 = True
 MT.SEEDS = [0, 1, 2, 3, 4]
 
@@ -68,9 +63,6 @@ os.makedirs(FIG, exist_ok=True)
 # ---- selected arms: (label, stage-1 name, stage-2 name, colour) ---------------------------------
 # Okabe-Ito colourblind-safe palette, fixed across every figure in the paper.
 ARMS = [
-    # Primary + runner-up: these two bracket the sharpness/calibration frontier — ALD is the
-    # sharpest arm at acceptable calibration, mixture the best-calibrated at acceptable sharpness,
-    # and they tie on CRPS (mean, median and worst unit alike).
     ("WienerNet (ALD)",           "WienerNet-SS (ALD, primary)", "WN-SS (ALD)",            "#0072B2"),
     ("WienerNet (mixture)",       "WienerNet-SS (mixture)",      "WN-SS (mixture)",        "#56B4E9"),
     ("Neural SDE (ALD)",          "Neural SDE (ALD)",            "Neural SDE (ALD)",       "#D55E00"),
@@ -80,10 +72,8 @@ ARMS = [
     ("Random Forest",             "Random Forest",               "Random Forest",          "#999999"),
 ]
 ANALYTICAL = "Analytical SDE (Student-t)"
-# The Analytical SDE is a calibrated physics prior, not a competing learned model. In Stage 2 it is
-# also degenerate against the given-diurnal arms (identical deterministic drift), so it can crowd
-# the gap-fill figures without adding a comparison. Off by default here; `--with-analytical-stage2`
-# puts it back. Stage-1 figures always keep it — there it IS the reference point.
+# Off by default in the Stage-2 figures; `--with-analytical-stage2` puts it back. The Stage-1
+# figures always draw it.
 SHOW_ANALYTICAL_STAGE2 = False
 
 LABELS = [a[0] for a in ARMS]
@@ -145,10 +135,8 @@ def units(df, name_col, name, metric):
 def _hdots(ax, arms, series, xlabel):
     """Horizontal mean-plus-units dot plot, log x.
 
-    The all-5 distributions are strongly right-skewed (a single out-of-distribution fold supplies
-    the tail), so a symmetric mean ± SD bar is not a faithful summary — it runs negative on a
-    positive-only quantity. Each (site, seed) unit is drawn instead, with the mean as a larger
-    marker, on a log axis so the in-distribution bulk and the OOD tail are both readable.
+    Each (site, seed) unit is drawn as a small marker with the mean as a larger marker, on a log
+    axis, since the all-5 distributions are strongly right-skewed.
     """
     y = np.arange(len(arms))[::-1].astype(float)
     for i, a in enumerate(arms):
@@ -187,7 +175,7 @@ def _hdots(ax, arms, series, xlabel):
 def _by_site_bars(ax, arms, df, name_of, metric, ylabel, ylim=None):
     """Grouped bars: one x group per held-out site, one bar per arm, ± 1 SD over the 5 seeds.
 
-    Used for the bounded / mildly-spread metrics (CRPS, coverage). Skewed ones use _by_site_dots.
+    Used for the bounded / mildly-spread metrics (CRPS, coverage); skewed ones use _by_site_dots.
     """
     nS, nM = len(SITES), len(arms)
     w = 0.8 / nM
@@ -216,8 +204,8 @@ def _by_site_bars(ax, arms, df, name_of, metric, ylabel, ylim=None):
 
 
 def _by_site_dots(ax, arms, df, name_of, metric, ylabel):
-    """Per-site markers on a log y axis — for metrics whose OOD fold is orders of magnitude out,
-    where a bar (anchored at zero) would misrepresent the ratio it is meant to show."""
+    """Per-site markers on a log y axis, for metrics whose per-site values span orders of
+    magnitude; stem lengths encode ratios rather than differences."""
     nS, nM = len(SITES), len(arms)
     w = 0.8 / nM
     pts = {}

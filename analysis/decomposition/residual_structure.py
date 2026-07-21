@@ -1,14 +1,12 @@
 #!/usr/bin/env python
-"""Illustrate that the residual is a structured stationary misfit, not overfit white noise.
+"""Temporal-scaling and autocorrelation diagnostics of the residual head.
 
-Two panels, pooled over the four in-distribution sites (residual variant ldiur_res_wien):
-  A. Variance-vs-window (log-log): Var of the summed physics-drift / residual / noise increment over
-     growing within-night windows, with fitted power-law slopes. The physics drift is the only
-     COHERENT accumulator (slope ≈ 2); the residual and the noise both scale ~linearly (slope ≈ 1),
-     but the residual sits above the noise and (panel B) is temporally structured.
-  B. Within-night autocorrelation of the residual vs the aleatoric noise: the residual is persistent
-     (lag-1 ≈ 0.5, decaying), the noise is white (≈ 0) — the residual carries systematic structure the
-     noise head does not, which is why its variance share does not average away.
+Two figures, pooled over four sites (residual variant ldiur_res_wien):
+  fig_residual_variance_scaling    — Var of the summed physics-drift / residual / noise increment
+                                     over growing within-night windows (log-log), with fitted
+                                     power-law slopes.
+  fig_residual_autocorrelation     — within-night autocorrelation of the residual and of the
+                                     aleatoric noise, versus lag.
 """
 from __future__ import annotations
 import os

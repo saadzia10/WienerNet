@@ -3,7 +3,7 @@
 # Time-scale sweep: train + evaluate one model per SDE step size. Each run
 # rescales the targets to a k*30-min step within each night (NEE_{t+k}, dNEE,
 # dTa, dt) via wienernet.data.rescale, so every method can be reported as a
-# function of its training+evaluation dt (manuscript: performance vs timescale).
+# function of its training+evaluation dt.
 #
 #   k = 1  -> 30 min      k = 4 -> 2 h      k = 16 -> 8 h
 #   k = 2  -> 1 h         k = 8 -> 4 h

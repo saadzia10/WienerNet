@@ -1,23 +1,11 @@
 # @package _global_
 #
-# Fix for the "drift displacement" issue: the noise head was learning a non-zero
-# conditional mean (set, by default, to the empirical mean of NEE - NEE_phy =
-# -0.238), so the deterministic part (nee_raw + drift) sat systematically above
-# ground truth and the noise pulled it back down.
-#
-# Two changes vs the published piae_sde_sampling / loss=full setup:
+# Zero-mean noise setup, two changes vs piae_sde_sampling / loss=full:
 #   1. model.heads.noise_zero_mean = true -> drop the fc_mu head so the noise is
 #      eps * sigma(z), i.e. E[eps|z]=0 by construction. No penalty / extra loss
-#      term (lower overhead than a soft mean(noise_mu^2) penalty); the
-#      deterministic part is structurally forced to carry the conditional mean.
-#   2. noise_prior.mean = 0.0 -> the mmd_noise term targets a zero-mean prior
-#      rather than the empirical -0.238, consistent with the zero-mean noise.
-#
-# Validation target: nee_pred RMSE/R2 should stay ~unchanged (this is a
-# re-decomposition, not a re-fit); the daily green "without noise" line should
-# align with GT and the predicted-noise mean should be ~0 at every site/seed
-# (the structural constraint removes the seed instability seen with the
-# empirical-prior-only run).
+#      term; the deterministic part carries the conditional mean.
+#   2. noise_prior.mean = 0.0 -> the mmd_noise term targets a zero-mean prior,
+#      consistent with the zero-mean noise.
 #
 # Invoke:
 #   python scripts/train.py experiment=zeromean_noise           # single seed
@@ -41,9 +29,7 @@ training:
 
 hydra:
   # The multirun subdir is hardcoded to ${model.variant}_seed${seed} in
-  # config.yaml, so without this override these runs would be indistinguishable
-  # from the baseline seed_sweep. Tag them so evaluate.py / aggregate scripts can
-  # pick them out and they don't collide conceptually with the published runs.
+  # config.yaml; override it so these runs get their own tagged subdir.
   sweep:
     subdir: zeromean_noise_seed${seed}
   sweeper:

@@ -1,11 +1,10 @@
 #!/usr/bin/env python
-"""Assemble the manuscript-grade HTML report with the figures embedded as
-data URIs. Read-only w.r.t. the codebase.
+"""Assemble the self-contained HTML error-structure report with the figures
+embedded as data URIs.
 
-The manuscript figures are standalone vector PDFs (see make_figures.py and the
-plot-generation conventions in CLAUDE.md). For the self-contained HTML report we
-rasterise each PDF to a PNG data URI (poppler `pdftoppm`) and lay the four error
-panels out as a 2x2 grid — the report is a review artifact, not a LaTeX figure."""
+The figures are standalone vector PDFs written by make_figures.py. Each PDF is
+rasterised to a PNG data URI (poppler `pdftoppm`) and the four error panels are
+laid out as a 2x2 grid. Writes ../error_structure_report.html."""
 import base64, os, subprocess, tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIGDIR = os.path.join(os.path.dirname(HERE), "figures")

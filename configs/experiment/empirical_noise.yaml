@@ -1,25 +1,13 @@
 # @package _global_
 #
-# Step 2 of the drift-displacement investigation: match the noise term to the
-# *shape* of the real residual distribution instead of a parametric Gaussian.
-#
-# The published setup matches predicted noise to N(mean=-0.238, std=1.60) — a
-# symmetric Gaussian whose mean bakes in the physics-misfit bias and whose std
-# is inflated by misfit variance. This experiment instead resamples from the
-# train-only residual pool (NEE - NEE_phy), de-meaned (center=true), so MMD
-# matches the true skewed/heavy-tailed shape with a zero-mean target and the
-# deterministic head carries the location.
-#
-# This is a standalone change (no noise_mean_zero penalty, unlike
-# experiment=zeromean_noise) so its effect can be read in isolation.
+# Match the noise term to the *shape* of the real residual distribution instead
+# of a parametric Gaussian: resample from the train-only residual pool
+# (NEE - NEE_phy), de-meaned (center=true), so MMD matches a skewed/heavy-tailed
+# shape with a zero-mean target and the deterministic head carries the location.
 #
 # Invoke:
 #   python scripts/train.py experiment=empirical_noise           # single seed
 #   python scripts/train.py -m experiment=empirical_noise        # 7-seed sweep
-#
-# Validation (vs baseline seed_sweep): nee_pred RMSE/R2 ~unchanged; predicted-
-# noise histogram matches the GT residual shape and centres on 0; predicted-noise
-# per-site mean collapses toward 0; noise std no longer pinned to the inflated 1.60.
 defaults:
   - override /model: piae_sde_sampling
   - override /loss: full

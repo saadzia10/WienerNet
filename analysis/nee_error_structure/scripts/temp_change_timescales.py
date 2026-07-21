@@ -1,10 +1,8 @@
 #!/usr/bin/env python
-"""Exploratory / read-only. Where does temperature *change* enough to matter,
-and at what timescale does that change actually track NEE change?
+"""Quantify how much temperature changes at each timescale, and how well that
+change tracks the NEE change.
 
-Motivation: at the native 30-min step, Ta and Tsoil barely move, so dTa/dTsoil
-correlate ~0 with dNEE (see nee_driver_correlations.py). This script walks up
-the timescale ladder:
+Walks up the timescale ladder:
 
   1. NATIVE 30-min   — how big is the within-night 30-min step in Ta / Tsoil?
   2. WITHIN-NIGHT k   — accumulate k*30-min steps inside one night (window_id);
@@ -16,7 +14,7 @@ the timescale ladder:
 At every level it reports mean |ΔTa|, mean |ΔTsoil|, and the Pearson r of
 dTa & dTsoil against dNEE (per-site and pooled, sites z-scored before pooling).
 
-Standalone. Does NOT import or modify the wienernet package. Run from repo root:
+Run from repo root:
     conda activate pytorch
     python temp_change_timescales.py
 """

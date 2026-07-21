@@ -23,10 +23,8 @@
 #   python scripts/train.py -m experiment=piae_increment_residual_nll         # 7-seed sweep
 defaults:
   - override /model: piae_increment_residual
-  - override /loss: nll_beta        # beta-NLL wins the seed-0 bake-off: keeps the
-                                     # baseline's deterministic accuracy AND is the
-                                     # best-calibrated (see docs). Swap loss=nll_gaussian
-                                     # / loss=nll_student_t to compare.
+  - override /loss: nll_beta        # swap loss=nll_gaussian / loss=nll_student_t
+                                     # to compare likelihood variants.
 
 run_name: piae_increment_residual_nll_seed${seed}
 

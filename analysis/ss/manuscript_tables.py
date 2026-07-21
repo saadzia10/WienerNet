@@ -1,14 +1,13 @@
 #!/usr/bin/env python
-"""Manuscript results tables: every model / ablation x (Stage-1 distributional, Stage-2 gap-filling),
-in three views — clean 4 sites, all 5 sites (including the Redmere-1 OOD stress), and site-wise.
+"""Results tables: every model / ablation x (Stage-1 distributional, Stage-2 gap-filling),
+in three views — 4 sites, all 5 sites, and site-wise.
 
-Values are `mean ± std` (1 SD). What the ± is taken over differs by stage, because the two stages
-were run at different seed depth — this is stated in every table footer rather than papered over:
+Values are `mean ± std` (1 SD):
 
   * Stage 1 (one-step distributional) — 3 seeds (0/1/42) x sites.
       pooled views : ± over all (site, seed) units.
       site-wise    : ± over the 3 seeds.
-  * Stage 2 (AR gap-fill + band)      — 3 seeds (0/1/42) x sites, same depth as Stage 1.
+  * Stage 2 (AR gap-fill + band)      — 3 seeds (0/1/42) x sites.
       pooled views : ± over all (site, seed) units.
       site-wise    : ± over the 3 seeds.
 
@@ -16,8 +15,8 @@ Seed-independent models (the calibrated Analytical SDE) are read once; where n =
 reported without ±.
 
 Outputs (analysis/ss/manuscript_tables/):
-  table_clean4.{csv,md}     — 4 in-distribution sites
-  table_all5.{csv,md}       — all 5 sites (Redmere-1 included)
+  table_clean4.{csv,md}     — 4 sites
+  table_all5.{csv,md}       — all 5 sites
   table_sitewise.{csv,md}   — per held-out site
 """
 from __future__ import annotations
@@ -41,7 +40,7 @@ SITE_LABEL = {"woodwalton": "Woodwalton", "rosedene": "Rosedene", "redmere_1": "
 
 # display name -> (stage-1 parent, stage-1 run template, is_point_model, stage-2 name in ar_gapfill_loso.csv)
 MODELS = [
-    # --- WienerNet-SS: likelihood axis (the manuscript ablation) ---
+    # --- WienerNet-SS: likelihood axis ---
     ("WienerNet-SS (ALD, primary)",             LOSO, "{site}_s{seed}_ldiur_wien",       False, "WN-SS (ALD)"),
     ("WienerNet-SS (Gaussian)",                 LOSO, "{site}_s{seed}_ldiur_wien_gauss", False, "WN-SS (Gaussian)"),
     ("WienerNet-SS (beta-NLL)",                 LOSO, "{site}_s{seed}_ldiur_wien_beta",  False, "WN-SS (beta-NLL)"),
@@ -50,19 +49,17 @@ MODELS = [
     # --- WienerNet-SS: other ablation axes ---
     ("WienerNet-SS (+residual)",                LOSO, "{site}_s{seed}_ldiur_res_wien",   False, "WN-SS (+residual)"),
     ("WienerNet-SS (predicted-k)",              LOSO, "{site}_s{seed}_ldiur_wien_predk", False, "WN-SS (predicted-k)"),
-    # --- state-space noise law: the matched partner of each single-Wiener arm above.
-    # Only ever run at ALD -- ALD is decisively the best likelihood on single-Wiener, so the
-    # likelihood axis was not crossed with the noise law (stated in the manuscript).
+    # --- state-space noise law: the matched partner of each single-Wiener arm above (ALD only) ---
     ("WienerNet-SS (state-space)",              LOSO, "{site}_s{seed}_ldiur_ss",         False, "WN-SS (state-space)"),
     ("WienerNet-SS (state-space, +residual)",   LOSO, "{site}_s{seed}_ldiur_res_ss",     False, "WN-SS (state-space, +residual)"),
     ("WienerNet-SS (state-space, predicted-k)", LOSO, "{site}_s{seed}_ldiur_ss_predk",   False, "WN-SS (state-space, predicted-k)"),
-    # Version A of the structural-error treatment: the SAME primary run, scored with the
-    # +sigma_struct band instead of the raw one. Stage-2 only -- sigma_struct is applied to the
-    # rollout band, not inside the model, so it has no Stage-1 row (shown as "—").
+    # The SAME primary run, scored with the +sigma_struct band instead of the raw one. Stage-2
+    # only -- sigma_struct is applied to the rollout band, not inside the model, so it has no
+    # Stage-1 row (shown as "—").
     ("WienerNet-SS (ALD + sigma_struct band)",  LOSO, "__stage2_only__",                 False, "WN-SS (ALD) +sigma_struct"),
     ("WienerNet-SS (given-diurnal, Wiener)",    LOSO, "{site}_s{seed}_diur_wien",        False, "WN-SS (given-diurnal, Wiener)"),
     ("WienerNet-SS (given-diurnal, state-sp)",  LOSO, "{site}_s{seed}_diur_ss",          False, "WN-SS (given-diurnal, st-sp)"),
-    # --- baselines at their manuscript likelihoods ---
+    # --- baselines ---
     ("Neural SDE (Gaussian)",       FL,   "comp_neuralsde_{site}_s{seed}",   False, "Neural SDE (Gaussian)"),
     ("Neural SDE (Student-t)",      LOSO, "{site}_s{seed}_base_nsde_studt",  False, "Neural SDE (Student-t)"),
     ("Neural SDE (ALD)",            LOSO, "{site}_s{seed}_base_nsde_ald",    False, "Neural SDE (ALD)"),
@@ -77,18 +74,6 @@ MODELS = [
 ]
 
 # ---- metric sets -------------------------------------------------------------------------------
-# MAIN = the manuscript tables. Reduced on purpose:
-#   NLL          dropped — unbounded, so at 5 sites it is 1e6-1e10 with a SD larger than the mean;
-#                also a second proper score that duplicates the CRPS ranking.
-#   cov50/cov95  dropped — near-collinear with cov90; PIT-KS already tests every quantile.
-#   std_z        dropped — redundant with PIT/coverage (std_z >> 1 *is* under-dispersion), OOD-driven.
-#   drift_r2     dropped — ~0 for every model (drift is a weak per-step signal at the noise floor);
-#                it validates the method, it does not discriminate models -> one sentence of text.
-#   noise_exkurt dropped — a property of the DATA residual, ~equal across models.
-#   vvs_ratio    dropped — process diagnostic, OOD-sensitive, not readable in a comparison table.
-#   gap CRPS at 0-2h/2-5h and gap sharpness dropped — the RMSE-by-horizon trend already carries the
-#                stability shape, and cov90+CRPS already carry the band quality.
-# FULL = everything, retained in the supplementary CSVs so nothing is lost.
 MAIN_S1 = ["crps", "rmse", "cov90", "sharp90", "pit_ks"]
 MAIN_S2 = ["rmse_h0-2", "rmse_h2-5", "rmse_h5+", "crpsraw_h5+", "pitksraw_h5+", "covraw_h5+"]
 FULL_S1 = ["crps", "nll", "rmse", "cov50", "cov90", "cov95", "sharp90", "pit_ks",
@@ -126,13 +111,11 @@ USE_FULL5 = False        # set by main(); see --full5
 def _resolve_run(parent, run_name, seed, use_lrfix):
     """Locate a run directory.
 
-    --full5: every arm comes from the single uniform-protocol sweep root, which flattens the old
-    ss_loso / final_loso split into one directory; anything absent there falls back to its original
-    parent so a partial sweep still renders.
+    --full5: every arm is read from the uniform-protocol sweep root, which holds the ss_loso and
+    final_loso arms in one directory; anything absent there falls back to its original parent.
 
-    --lrfix (the older, superseded mode): seed 42 was re-trained with a leakage-free LR schedule
-    after it was found to diverge under the original constant-LR protocol; arms with no LR schedule
-    to fix (Analytical SDE, RF/XGB) have no re-run and fall back automatically.
+    --lrfix: seed 42 is read from the re-run root where available; arms with no re-run fall back
+    to their original parent.
     """
     if USE_FULL5:
         alt = os.path.join(FULL5_ROOT, run_name)
@@ -264,18 +247,12 @@ def main(use_lrfix=False, skip_supp=False, full5=False, stage2_csv=None):
                   "re-trained under one identical schedule — `reduce_on_plateau` stepped on the "
                   "held-out-site loss, no validation split carved from the training sites — so the "
                   "± is a genuine seed spread and not a mixture of protocols. "
-                  "**These values are scored from `best.pth`, which with `data.val_frac` unset is "
-                  "the epoch selected ON THE HELD-OUT TEST SITE.** They are therefore an optimistic, "
-                  "test-selected bound rather than an honest estimate of generalisation, and they are "
-                  "not directly comparable to the calibrated Analytical SDE and tree arms, which have "
-                  "no epoch to select and gain nothing from it. The leakage-free `last.pth` scores are "
-                  "archived in `analysis/ss/v2_last_archive/`.")
+                  "Values are scored from `best.pth`; the `last.pth` scores are archived in "
+                  "`analysis/ss/v2_last_archive/`.")
         NSEED, NSEEDL = "5 seeds", "the 5 seeds (0-4)"
     else:
-        LRNOTE = ("  **Seed 42 uses the LR-fixed re-run** (`reduce_on_plateau`, stepped on the TRAIN "
-                  "loss) for every gradient-trained arm, after seed 42 was found to diverge under the "
-                  "original constant-LR protocol; seeds 0 and 1 remain on the original protocol, so "
-                  "the ± for a given row mixes two training protocols and is provisional."
+        LRNOTE = ("  **Seed 42 uses the re-run** (`reduce_on_plateau`, stepped on the TRAIN loss) "
+                  "for every gradient-trained arm; seeds 0 and 1 use the constant-LR protocol."
                   if use_lrfix else "")
         NSEED, NSEEDL = "3 seeds", "the 3 seeds (0/1/42)"
 
@@ -319,7 +296,7 @@ def main(use_lrfix=False, skip_supp=False, full5=False, stage2_csv=None):
         print(f"wrote {stem:<18} {len(df):>3} rows x {len(df.columns)-2:>2} metrics")
     open(os.path.join(OUTDIR, "all_tables.md"), "w").write("\n".join(md_all) + "\n")
 
-    # ---- supplementary: the FULL metric sets (nothing is lost by the main-table reduction) ----
+    # ---- supplementary: the FULL metric sets ----
     if skip_supp:
         print("skipped supplementary CSVs (--skip-supp): they still reflect the previous run")
         return

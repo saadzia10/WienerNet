@@ -1,10 +1,9 @@
-"""Shared manuscript-figure scaffold for the decomposition plots.
+"""Shared figure scaffold for the decomposition plots.
 
 Implements the repo plot-conventions skill: no titles / panel letters, unit-bearing axis
 labels, one standalone vector (PDF) file per plot, print-legible fonts, tight bbox, a fixed
 Okabe-Ito colorblind palette, and a draft-caption `.txt` sidecar per figure. A preview PNG is
-written alongside the PDF purely so the figure can be embedded in the analysis Markdown; the
-PDF is the manuscript deliverable.
+written alongside the PDF so the figure can be embedded in Markdown.
 """
 from __future__ import annotations
 import os

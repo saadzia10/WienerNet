@@ -1,16 +1,14 @@
 #!/usr/bin/env python
-"""Publication figures for the WienerNet-SS multi-site generalisation (Task 1) and the
-structural band fix (Task 2). Reads the CSVs written by loso_report.py / gap_band_eval.py /
-autoregressive_gapfill.py and writes PNGs to analysis/ss/figs/.
+"""Figures for the WienerNet-SS multi-site generalisation and the structural band term.
+Reads the CSVs written by loso_report.py / gap_band_eval.py / autoregressive_gapfill.py and
+writes PNGs to analysis/ss/figs/.
 
 Figures:
-  F1  per-site CRPS, grouped bars, error bars = std over seeds (competitive region; the
-      catastrophic OOD blow-ups are annotated off-chart, not plotted, so the scale stays read-
-      able) — does WienerNet-SS win/tie the best competitor at every held-out site?
-  F2  per-site 90% coverage vs the 0.90 target line — calibration across sites.
-  F3  autoregressive gap-fill RMSE by hours-into-gap — the stability story (physics drift keeps
-      RMSE flat; noise-chasing / persistence climbs).
-  F4  gap band coverage before vs after the structural fix — Task 2.
+  F1  per-site CRPS, grouped bars, error bars = std over seeds; bars are clipped at 2.0 and
+      values above the clip are annotated off-chart.
+  F2  per-site 90% coverage vs the 0.90 target line.
+  F3  autoregressive gap-fill RMSE by hours-into-gap; values above the 4.0 clip are annotated.
+  F4  gap band coverage with and without the structural-variance term.
 """
 from __future__ import annotations
 import os
@@ -80,7 +78,7 @@ def fig_crps_coverage(df):
             ax.set_ylim(0, 1.02)
         if cap is not None and metric == "crps":
             ax.set_ylim(0, cap * 1.08)
-            ax.annotate("bars clipped at 2.0; value = mean CRPS (catastrophic OOD blow-up)",
+            ax.annotate("bars clipped at 2.0; value = mean CRPS",
                         (0.5, 0.98), xycoords="axes fraction", fontsize=7, ha="center", va="top", color="#666")
         for sp in ("top", "right"):
             ax.spines[sp].set_visible(False)
@@ -98,7 +96,7 @@ def fig_ar_rmse():
         print("skip F3 (no ar_gapfill_loso.csv yet)"); return
     df = pd.read_csv(p)
     bins = ["h0-2", "h2-5", "h5+"]
-    CAP = 4.0   # competitive region; Neural SDE's OOD blow-up is annotated off-chart
+    CAP = 4.0   # competitive region; larger values are annotated off-chart
     fig, ax = plt.subplots(figsize=(7.8, 4.6))
     # WN-SS (state-space) drawn last & on top; Analytical dashed — the physics-drift models
     # coincide (identical deterministic drift), so distinct styles keep both visible.

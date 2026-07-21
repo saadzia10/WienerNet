@@ -4,10 +4,9 @@
 # level PER SITE instead of one global.
 #
 # Same textbook physics drift (GT Lloyd-Taylor), but the constant sigma is
-# calibrated within each site from that site's training increment-misfit spread —
-# capturing that the fen sites have different noise scales (per-site residual
-# slope 0.19-0.38 in the error-structure analysis). Still seed-invariant and
-# still at its Gaussian-NLL MLE after calibration.
+# calibrated within each site from that site's training increment-misfit spread,
+# capturing that the fen sites have different noise scales. Still seed-invariant
+# and still at its Gaussian-NLL MLE after calibration.
 #
 # Invoke:
 #   python scripts/train.py experiment=baseline_analytical_sde_persite

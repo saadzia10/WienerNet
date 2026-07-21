@@ -71,7 +71,7 @@ def gap_fill(run, days=(1, 3, 7, 14)):
 
 COMBOS = [f"{k}_{d}_{r}_{n}" for k in ("gtk", "pk") for d in ("diur", "ldiur")
           for r in ("res", "nores") for n in ("ss", "wien")]
-BASELINES = {  # from the earlier final_loso sweep (woodwalton, seed 0)
+BASELINES = {  # woodwalton, seed 0
     "WienerNet-Laplace (30m, GT-k)": os.path.join(FINAL, "wienernet_laplace_woodwalton_s0"),
     "MDN (no physics)": os.path.join(FINAL, "comp_mdn_woodwalton_s0"),
     "Analytical SDE": os.path.join(FINAL, "prior_analytical_woodwalton_s0"),

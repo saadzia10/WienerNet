@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-"""Figures for the Redmere 1 blow-up analysis (one standalone vector file per plot; manuscript
-conventions): the corrupted-driver artifact, the noise-scale explosion, and the error localisation."""
+"""Figures for the Redmere 1 analysis (one standalone vector file per plot): per-driver
+distribution shift, per-site Tau distribution, predicted noise scale, and RMSE by prediction type."""
 from __future__ import annotations
 import os, json, csv
 import numpy as np
@@ -13,11 +13,8 @@ rep = json.load(open(os.path.join(HERE, "investigate.json")))
 
 
 def fig_driver_ood():
-    """Per-driver standardised mean shift, as a horizontal lollipop on a log axis.
-
-    A linear bar chart is unusable here: Tau's 26.5σ is ~50x every other driver, so the
-    remaining seven bars collapse onto zero and the value label ends up inside the bar.
-    """
+    """Per-driver standardised mean shift vs the training pool, as a horizontal lollipop
+    on a log axis, with the signed value annotated."""
     od = rep["driver_ood"]["per_driver"]
     drivers = sorted(od, key=lambda d: abs(od[d]["z_meanshift"]))   # bottom -> top = ascending
     z = [max(abs(od[d]["z_meanshift"]), 1e-3) for d in drivers]
@@ -50,11 +47,10 @@ def fig_driver_ood():
 
 
 def fig_tau_range(basis="model"):
-    """Per-site Tau distribution on a symmetric-log axis: the actual magnitude of the corruption.
+    """Per-site Tau distribution on a symmetric-log axis.
 
     `basis="model"` uses the rows the training pipeline keeps (nighttime + every driver non-NaN);
-    `basis="raw"` uses the nighttime rows before that driver-completeness dropna, where Redmere 1's
-    Tau tails are a further order of magnitude wider.
+    `basis="raw"` uses the nighttime rows before that driver-completeness dropna.
     """
     src = "tau_by_site.json" if basis == "model" else "tau_by_site_raw.json"
     summ = json.load(open(os.path.join(HERE, src)))

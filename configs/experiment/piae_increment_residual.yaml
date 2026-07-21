@@ -6,10 +6,9 @@
 #   dNEE = (f_phys + r(z))*dt + sigma(z)*sqrt(dt)*Z ,  NEE_{t+1} = NEE_t + dNEE
 # bNEE is the integration boundary only (not reconstructed, not encoded).
 # r(z) is a state-dependent drift-misfit correction; the noise is structurally
-# zero-mean, so it is pure aleatoric and the misfit lives in r — a publishable
-# "where Lloyd-Taylor is biased" diagnostic. See docs/increment_sde_model_plan.md.
+# zero-mean, so it is pure aleatoric and the misfit lives in r.
 #
-# This experiment is the AUTHORITATIVE default for version A. It pins:
+# This config is the default for version A. It pins:
 #
 #   Both noise-mean fixes, together (complementary):
 #     1. STRUCTURAL zero-mean noise (model.noise_zero_mean=true) — noise = eps*sigma(z).

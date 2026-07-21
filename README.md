@@ -1,158 +1,148 @@
 # WienerNet
 
-Physics-informed autoencoder for forecasting nighttime ecosystem CO₂ fluxes
-(NEE) at UK East Anglia flux towers. The dynamics are modelled as a
-Wiener-process SDE with an analytic Lloyd-Taylor drift and a learned noise
-term sampled via VAE-style reparameterisation.
+Physics-informed models for forecasting nighttime ecosystem CO₂ flux (NEE) at UK
+East Anglia flux towers. The dynamics are modelled as an SDE with an analytic
+Lloyd–Taylor respiration drift and a learned stochastic term, trained through a
+Hydra-driven pipeline with composable model heads and loss profiles.
 
 Reference: Houpert C., Zia S. et al., *Physics-informed VAE for enhancing
 forecast reliability of CO₂ emissions from agricultural farms.*
 
 ---
 
+## Install
+
+```bash
+conda env create -f env.yaml
+conda activate pytorch
+```
+
 ## Quickstart
 
 ```bash
-# 1. Environment
-conda env create -f env.yaml
-conda activate pytorch
-pip install hydra-core mlflow rich pytest    # if not already in env
-
-# 2. Train the headline configuration
-python scripts/train.py experiment=paper_main
-
-# 3. Evaluate the resulting checkpoint
-python scripts/evaluate.py --run outputs/*paper_main*
-
-# 4. View metrics in the analysis notebook
-jupyter notebook notebooks/02_results_analysis.ipynb
+python scripts/train.py                          # default model + loss, seed 42
+python scripts/evaluate.py --run outputs/<run>   # metrics + predictions
 ```
 
-## Directory layout
-
-```
-configs/           Hydra config tree
-wienernet/         Main package (models, losses, training, evaluation, data, utils, physics)
-data_pipeline/    Site preprocessing + Lloyd-Taylor parameter fitting
-scripts/           train.py + evaluate.py (Hydra entrypoints)
-notebooks/         Slim analysis notebook (12 cells)
-tests/             pytest suite (73 tests)
-data_manipulation/  Parquet files + active parameter-estimation notebooks
-.archive/          Pre-refactor code preserved for reference
-```
+Every run writes `outputs/<timestamp>_<run_name>/` containing `config.json`,
+`checkpoints/{best,last}.pth`, `history.json`, `scaler.pkl`, `run.log`,
+`tensorboard/`, and Hydra's `.hydra/`. With `mlflow.enabled=true` (default) runs
+are also logged to `./mlruns/` — view with `mlflow ui`.
 
 ## Training
 
-### Torch models (WienerNet + AE/VAE family)
+Pick a model and a loss profile from the config groups; override any field on the
+command line.
+
 ```bash
-# Pick a model variant + loss profile
 python scripts/train.py model=piae_sde_sampling loss=full
-python scripts/train.py model=piae_sde_reg_sampling loss=reg
+python scripts/train.py model=piae_increment_residual loss=nll_ald
 python scripts/train.py model=ae loss=ae
-python scripts/train.py model=vae loss=vae
-python scripts/train.py model=pivae_sde_sampling loss=full
 
-# Override any field on the CLI
 python scripts/train.py model.latent_dim=64 training.optimizer.lr=5e-4 seed=88
-
-# Multirun (Hydra basic launcher)
-python scripts/train.py -m seed=0,1,2,41,88,128,256          # 7-seed sweep
-python scripts/train.py -m model=piae_sde_sampling,ae,vae    # 3 variants
-
-# Pre-composed experiments
-python scripts/train.py experiment=paper_main
-python scripts/train.py -m experiment=seed_sweep
 ```
 
-### Non-torch baselines (Random Forest, XGBoost)
+**Models** (`configs/model/`)
 
-These baselines share the data pipeline + evaluation flow but use scikit-learn /
-XGBoost directly (no torch). A separate entrypoint avoids cluttering the
-torch trainer with sklearn branching:
+| Group | Variants |
+|---|---|
+| WienerNet (level) | `piae_sde_sampling`, `piae_sde_reg_sampling`, `pivae_sde_sampling` |
+| WienerNet (increment / SS) | `piae_increment`, `piae_increment_residual`, `piae_reg_increment` |
+| Process baselines | `analytical_sde`, `neural_sde`, `hetero_mlp`, `hetero_mdn` |
+| Autoencoder baselines | `ae`, `vae` |
+| Tree baselines | `rf`, `xgb` (via `train_baseline.py`) |
+
+**Losses** (`configs/loss/`): `full`, `reg`, `ae`, `vae`, `increment`,
+`increment_residual`, and the likelihood profiles `nll_gaussian`, `nll_beta`,
+`nll_student_t`, `nll_ald`. Loss weights are config-driven — set a term's weight
+to `0` to ablate it.
+
+**Pre-composed experiments** (`configs/experiment/`), e.g.:
 
 ```bash
-python scripts/train_baseline.py                                # default: rf, seed 42
-python scripts/train_baseline.py model=xgb seed=88
-python scripts/train_baseline.py -m model=rf,xgb seed=0,1,2,41,88,128,256
-
-# Override hyperparameters on the CLI
-python scripts/train_baseline.py model=rf model.n_estimators=300 model.max_depth=10
-python scripts/train_baseline.py model=xgb model.learning_rate=0.05 model.n_estimators=500
+python scripts/train.py experiment=paper_main
+python scripts/train.py experiment=piae_increment_residual_nll
+python scripts/train.py -m experiment=seed_sweep          # 7 seeds
 ```
 
-Each run produces `outputs/<timestamp>_<variant>_seed<N>/` containing:
-- `checkpoints/model.joblib` — the fitted estimator (re-loadable via `RandomForestBaseline.load(path)` or `XGBoostBaseline.load(path)`)
-- `metrics.json` — full per-resolution metric table for NEE
-- `predictions.parquet` — gt + preds + test_df for downstream plotting
-- `feature_importance.csv` — sklearn's per-feature importance ranking
-- `config.json`, `run.log`, `scaler.pkl`
+### Splits
 
-Each run produces `outputs/<timestamp>_<run_name>/` containing:
-- `config.json` — the fully-resolved Hydra config
-- `checkpoints/best.pth` + `last.pth` — model + optimizer + scheduler + RNG state
-- `history.json` — per-epoch loss components
-- `scaler.pkl` — fitted StandardScaler
-- `tensorboard/` — TB event files
-- `run.log`
+`data.split_strategy` is one of `site_fraction` (default), `year`, or
+`site_holdout`. For leave-one-site-out, hold a tower out and train on the rest:
 
-If `mlflow.enabled=true` (default), every run is also logged to `./mlruns/`.
-View with `mlflow ui`.
+```bash
+python scripts/train.py data.split_strategy=site_holdout data.holdout_site=woodwalton
+```
+
+Set `data.val_frac` to carve a validation split from the *training* sites; when
+it is unset the test loader is used as the val monitor.
+
+### Tree baselines
+
+RF/XGB use scikit-learn directly, so they have their own entrypoint:
+
+```bash
+python scripts/train_baseline.py model=rf seed=42
+python scripts/train_baseline.py model=xgb model.n_estimators=500 model.learning_rate=0.05
+python scripts/train_baseline.py -m model=rf,xgb seed=0,1,2
+```
+
+These write `checkpoints/model.joblib` (reload with
+`RandomForestBaseline.load(path)` / `XGBoostBaseline.load(path)`),
+`metrics.json`, `predictions.parquet`, and `feature_importance.csv`.
+
+### Sweeps
+
+```bash
+python scripts/train.py -m seed=0,1,2,41,88,128,256
+python scripts/train.py -m model=piae_sde_sampling,ae,vae loss=full,ae,vae
+```
 
 ## Evaluation
 
 ```bash
-# Single run
-python scripts/evaluate.py --run outputs/X
-
-# Cross-seed summary
-python scripts/evaluate.py --run outputs/*paper_main*
+python scripts/evaluate.py --run outputs/X                 # single run
+python scripts/evaluate.py --run outputs/X outputs/Y       # cross-seed summary
 ```
 
-Produces:
-- `outputs/X/metrics/predictions.parquet` — gt + preds + test_df columns
-- `outputs/X/metrics/per_site.csv` — per-site metric breakdown
-- `outputs/evaluation_summary/long.csv` — one row per (run, resolution, target, metric)
-- `outputs/evaluation_summary/summary.csv` — median + MAD across runs
+Produces `metrics/predictions.parquet`, `metrics/per_site.csv`, and
+`metrics/probabilistic.json` per run, plus `outputs/evaluation_summary/`
+(`long.csv`, `summary.csv`) across runs. `scripts/evaluate.py` handles torch
+runs; tree baselines write their metrics during training.
 
 ## Data pipeline
 
 ```bash
-# Raw site Excel → canonical parquet → Lloyd-Taylor parameter fits
 python -m data_pipeline.cli preprocess --site woodwalton
-python -m data_pipeline.cli partition --site woodwalton --strategy astral
-python -m data_pipeline.cli all --site rosedene --strategy column
+python -m data_pipeline.cli partition  --site woodwalton --strategy astral
+python -m data_pipeline.cli all        --site rosedene   --strategy column
 ```
+
+Raw site spreadsheets → canonical parquet → Lloyd–Taylor parameter fits →
+`final_night_data.parquet` / `final_day_data.parquet`.
 
 ## Testing
 
 ```bash
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest          # 73 tests, ~3s
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest       # 241 tests
 ```
 
-The `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1` workaround is necessary because of a
-broken langsmith plugin in the shared conda env (incompatible with pydantic v1).
+`PYTEST_DISABLE_PLUGIN_AUTOLOAD=1` is required: the conda env ships a langsmith
+pytest plugin that is incompatible with the installed pydantic v1.
 
-## Architecture
+## Layout
 
-The unified `WienerNetModel` has composable heads controlled by a YAML config:
-
-| Variant | latent_reparameterize | predict_drift | heads (k, temp_derivative, noise) | Entrypoint |
-|---|---|---|---|---|
-| `piae_sde_sampling` | False | True | k+temp+noise (the full WienerNet) | `train.py` |
-| `piae_sde_reg_sampling` | False | False | k+temp+noise (ablation: no SDE step) | `train.py` |
-| `pivae_sde_sampling` | True | True | k+temp+noise (VAE latent) | `train.py` |
-| `ae` | False | False | k only | `train.py` |
-| `vae` | True | False | k only | `train.py` |
-| `rf` | — | — | sklearn RandomForestRegressor on flat features | `train_baseline.py` |
-| `xgb` | — | — | xgboost.XGBRegressor on flat features | `train_baseline.py` |
-
-The 5 hand-written torch model+trainer pairs from the original codebase are
-reduced to one model class + one Trainer + 5 YAML presets. The two non-torch
-baselines (RF, XGB) share the same data pipeline and evaluation flow.
-
-## Citing
-
-Citation guidance will be added when the paper is published.
+```
+configs/            Hydra config tree (data, model, training, loss, experiment)
+wienernet/          Package: models, losses, physics, training, evaluation, data, baselines, utils
+data_pipeline/      Site preprocessing + Lloyd-Taylor parameter fitting
+scripts/            train.py, train_baseline.py, evaluate.py + sweep drivers
+analysis/           Post-hoc analysis scripts and figure builders
+notebooks/          Results-analysis notebook
+tests/              pytest suite
+outputs/, multirun/ Hydra run outputs
+.archive/           Pre-refactor code, kept for reference
+```
 
 ## License
 

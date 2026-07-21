@@ -3,9 +3,8 @@
 # Baseline 1 — Analytical SDE (constant-diffusion, textbook version).
 #
 # Physics drift (GT Lloyd-Taylor) + a single global constant diffusion level
-# calibrated from the training increment-misfit spread. The cheapest baseline and
-# the reference point for the core claim: what the learned misfit + state-
-# dependent noise buy over textbook physics with constant noise.
+# calibrated from the training increment-misfit spread. The cheapest baseline:
+# textbook physics with constant noise, no learned misfit or state-dependent noise.
 #
 # Seed-invariant: the drift is deterministic GT physics and sigma is calibrated
 # from the (fixed) training data, so every seed gives the identical predictive

@@ -21,14 +21,12 @@ Four tables are written (CSV + Markdown) to analysis/diurnal/tables/:
                 the composite, bias, and the predicted/observed amplitude ratio.
   T3_by_hour    point + distributional NEE skill resolved by hour-of-night bin:
                 RMSE, CRPS, 90% coverage, 90% sharpness, PIT-KS.
-  T4_overall    the same metrics over all half-hourly points (anchor row; should
-                reproduce the Stage-1 numbers in analysis/ss/manuscript_tables).
+  T4_overall    the same metrics over all half-hourly points.
 
-Scoring convention follows scripts/evaluate.py exactly: the one-step predictive
-law is scored as Gaussian(pred_nee_mean, pred_nee_std) — `_predictive_family()`
-returns Gaussian for every non-Student-t head, ALD included — so CRPS/PIT here
-are directly comparable to the manuscript Stage-1 tables. Per-sample CRPS and
-PIT are read straight from the parquet; coverage/sharpness are recomputed from
+Scoring convention follows scripts/evaluate.py: the one-step predictive law is
+scored as Gaussian(pred_nee_mean, pred_nee_std) — `_predictive_family()` returns
+Gaussian for every non-Student-t head, ALD included. Per-sample CRPS and PIT are
+read straight from the parquet; coverage/sharpness are recomputed from
 (mean, std) with the repo's `predictive_interval`.
 """
 from __future__ import annotations
@@ -58,8 +56,6 @@ MODELS = [("GT-k (primary)", "{site}_s{seed}_ldiur_wien"),
 # Hour-of-night bins. UK sites, nighttime-only records; DateTime is UTC and the
 # local offset is at most 1 h, so UTC hour is used directly (DateTimeLocal is
 # NaT for some sites). Ordered evening -> dawn across the midnight wrap.
-# The 18-06 core carries ~91% of the records; the 16-18 / 06-09 shoulders are the
-# winter nights and are kept so every table covers all test points.
 HOUR_BINS = [("16-18", (16, 17)), ("18-21", (18, 19, 20)), ("21-24", (21, 22, 23)),
              ("00-03", (0, 1, 2)), ("03-06", (3, 4, 5)), ("06-09", (6, 7, 8))]
 
@@ -246,8 +242,6 @@ def main():
     comp_m = dict(comp_rmse=3, comp_bias=3, amp_obs=3, amp_pred=3, amp_ratio=3, comp_r2=3)
     dist_m = dict(rmse=3, mae=3, bias=3, crps=3, cov90=3, sharp90=2, pit_ks=3)
 
-    # Redmere 1 is the known OOD stress site (see docs/redmere1_blowup_analysis.md)
-    # and dominates every pooled SD, so the 4-clean-site pooled view is reported too.
     clean = lambda d: d[d["site"] != "redmere_1"]  # noqa: E731
     tend_c, comp_c, overall_c, byhour_c = map(clean, (tend, comp, overall, byhour))
 

@@ -1,27 +1,24 @@
 #!/usr/bin/env python
-"""Autoregressive within-night gap-filling for ALL methods, across ALL five held-out sites.
+"""Autoregressive within-night gap-filling for all methods, across all five held-out sites.
 
-Protocol (user-specified): for each contiguous night, anchor at the last observed NEE before
-the night, forecast NEE_{t+1}, feed that forecast back as NEE_t for the next step, using the
-real drivers at every step (only NEE is synthetic). Every increment-form model uses NEE_t
-(nee_pred = bNEE + drift + noise, incl. MDN comp_means = b + decoder), so this is fair.
+Protocol: for each contiguous night, anchor at the last observed NEE before the night,
+forecast NEE_{t+1}, feed that forecast back as NEE_t for the next step, using the real drivers
+at every step (only NEE is synthetic). Every increment-form model uses NEE_t
+(nee_pred = bNEE + drift + noise, incl. MDN comp_means = b + decoder).
 
 Two outputs per (site, model):
   * deterministic rollout (feed the mean forward)   -> point RMSE by hours-into-gap
   * ensemble rollout (M noisy members)              -> 90% band coverage by hours-into-gap
-    For WienerNet-SS we ALSO report the NEXT-2 structural-fix band: each member carries a
-    persistent structural offset ~ N(0, sigma_struct) (sigma_struct estimated out-of-sample
-    on the training sites), added on top of the aleatoric spread. This is the rollout analogue
-    of the gap_band_eval fix — the band must know about the flux variation temperature can't
-    explain, or it under-covers no matter how the aleatoric heads are calibrated.
+    For WienerNet-SS a structural-band variant is also reported: each member carries a
+    persistent structural offset ~ N(0, sigma_struct) (sigma_struct estimated on the training
+    sites), added on top of the aleatoric spread — the rollout analogue of the gap_band_eval
+    band.
 
-Trees (RF/XGB) are driver-only regressors: they don't consume NEE_t, so their gap forecast is
-their stored per-row prediction (pred_nee), aligned by DateTime. Their RMSE is therefore FLAT
-with gap length by construction (a useful reference: no accumulation, but no physics drift
-either) and they carry no uncertainty band (point-only).
+Trees (RF/XGB) are rolled out under the same protocol and emit no uncertainty band
+(point-only).
 
-A model whose drift tracks the within-night respiration decline keeps RMSE flat as the gap
-grows; a persistence-like or noise-chasing model's RMSE climbs / blows up.
+Writes per-seed CSVs (ar_gapfill_s<seed>.csv), the merged ar_gapfill_loso.csv and the pooled
+gap_crps_summary.csv under analysis/ss/.
 """
 from __future__ import annotations
 import os, sys, csv
@@ -49,13 +46,9 @@ BINS = [("h0-2", lambda s: s < 4), ("h2-5", lambda s: (s >= 4) & (s < 10)), ("h5
 _BUNDLE_CACHE = {}
 
 # When set (via --prefer-root), a run of the same basename under this root wins over the
-# canonical location. Used to score the LR-fixed seed-42 re-runs (outputs/ss_lrfix) while
-# silently falling back to the original run for arms that were not re-trained
-# (Analytical SDE, RF/XGB -- no LR schedule to fix).
+# canonical location; arms with no run there fall back to the canonical location.
 PREFER_ROOT: str | None = None
-# Which checkpoint the rollout loads. 'last' is the honest default: with data.val_frac unset the
-# val monitor IS the held-out test site, so 'best' is the epoch selected ON the test site and any
-# score from it is an optimistic, test-selected bound rather than an estimate of real skill.
+# Which checkpoint the rollout loads.
 CHECKPOINT: str = "last"
 
 
@@ -69,9 +62,8 @@ def _resolve(path: str) -> str:
 
 def _get_bundle(cfg):
     """Build (or reuse) the leave-one-site-out dataloader bundle. Cached per (holdout_site, drivers):
-    every model rolled out for a given held-out site shares the same test set / train sites, so we
-    build the data once per site rather than once per model — the dataloader build is the cost
-    bottleneck when many models (all likelihood arms + matched-loss baselines) are rolled out."""
+    every model rolled out for a given held-out site shares the same test set / train sites, so the
+    data is built once per site rather than once per model."""
     key = (str(cfg.data.get("holdout_site")), tuple(cfg.data.drivers))
     if key not in _BUNDLE_CACHE:
         _BUNDLE_CACHE.clear()   # site-major loop -> keep one bundle (bounds RAM across parallel seeds)
@@ -157,7 +149,7 @@ def rollout_torch(model, ds, night, sigma_struct=0.0, M=100, min_len=6, max_nigh
 
     def _dist(mem):
         """Full distributional scores from an (N,M) gap ensemble vs obs: CRPS, coverage@{50,90,95},
-        sharpness (90% width), and rank PIT — the Stage-1 battery applied to the rollout."""
+        sharpness (90% width), and rank PIT."""
         q = np.quantile(mem, [0.025, 0.05, 0.25, 0.75, 0.95, 0.975], axis=1)   # (6, N)
         return dict(crps=crps_ensemble(obs_all, mem),
                     cov50=((obs_all >= q[2]) & (obs_all <= q[3])).astype(float),
@@ -177,7 +169,7 @@ def rollout_torch(model, ds, night, sigma_struct=0.0, M=100, min_len=6, max_nigh
             continue
         d = _dist(mem)
         r[f"crps_{tag}"] = binned(d["crps"], mean_)
-        r[f"cov_{tag}"] = binned(d["cov90"], mean_)          # 90% (headline; back-compatible key)
+        r[f"cov_{tag}"] = binned(d["cov90"], mean_)          # 90% (back-compatible key)
         r[f"cov50_{tag}"] = binned(d["cov50"], mean_)
         r[f"cov95_{tag}"] = binned(d["cov95"], mean_)
         r[f"sharp_{tag}"] = binned(d["sharp"], mean_)
@@ -186,19 +178,12 @@ def rollout_torch(model, ds, night, sigma_struct=0.0, M=100, min_len=6, max_nigh
 
 
 def rollout_tree(run_dir, night_ref_df=None, min_len=6, max_nights=200, seed=0):
-    """TRUE autoregressive gap-fill for a tree baseline — same protocol as `rollout_torch`.
+    """Autoregressive gap-fill for a tree baseline — same protocol as `rollout_torch`.
 
-    The trees take the current flux `bNEE` as a feature (importance ~0.73 for RF), so they can only
-    be run through a gap by feeding each prediction back as the next step's input. That is what this
-    does: anchor once on the observed NEE at the gap edge, then propagate. Observed DRIVERS are
-    refreshed every step (they remain available during a gap); only NEE is unobserved and therefore
-    self-supplied.
-
-    The previous implementation instead re-binned the stored one-step `pred_nee` column, which had
-    been produced with the TRUE NEE_t at every row. That is teacher forcing, not a rollout: it gave
-    the trees observations the other models were denied, produced error that was flat in gap-time
-    (a real rollout must compound), and scored worse than trivial persistence. Those numbers were
-    not gap-filling results and are not comparable to anything else in Stage 2.
+    The trees take the current flux `bNEE` as a feature, so they are run through a gap by feeding
+    each prediction back as the next step's input: anchor once on the observed NEE at the gap edge,
+    then propagate. Observed DRIVERS are refreshed every step (they remain available during a gap);
+    only NEE is unobserved and therefore self-supplied.
 
     Point predictors -> RMSE only; no ensemble, hence no CRPS/coverage/PIT.
     """
@@ -255,7 +240,7 @@ def night_ref(test_df):
 
 
 def write_gap_summary(df, out):
-    """Manuscript-ready aggregate: all methods x {all 5, clean 4} x horizon, RMSE / CRPS (raw+fix) /
+    """Aggregate table: all methods x {all 5 sites, 4 sites} x horizon, RMSE / CRPS (raw+fix) /
     coverage (raw+fix). Derived from the per-site ar_gapfill_loso rows."""
     HS = ["h0-2", "h2-5", "h5+"]
     METRICS = ["rmse", "crpsraw", "crpsfix", "covraw", "covfix", "cov50raw", "cov50fix",
@@ -280,9 +265,9 @@ def main(seed=0):
 
     def paths(site):
         return [
-            # --- WienerNet-SS likelihood axis (manuscript ablation): learned-diurnal, single-Wiener,
-            #     GT-k, residual OFF; only the likelihood family changes. ALD is the primary and keeps
-            #     the +sigma_struct band (torch_struct -> covFIX/crpsFIX); the rest use the raw band. ---
+            # --- WienerNet-SS likelihood axis: learned-diurnal, single-Wiener, GT-k, residual OFF;
+            #     only the likelihood family changes. ALD uses the +sigma_struct band
+            #     (torch_struct -> covFIX/crpsFIX); the rest use the raw band. ---
             ("WN-SS (ALD)",        os.path.join(LOSO, f"{site}_s{seed}_ldiur_wien"), "torch_struct"),
             ("WN-SS (Gaussian)",   os.path.join(LOSO, f"{site}_s{seed}_ldiur_wien_gauss"), "torch"),
             ("WN-SS (beta-NLL)",   os.path.join(LOSO, f"{site}_s{seed}_ldiur_wien_beta"), "torch"),
@@ -297,7 +282,7 @@ def main(seed=0):
             ("WN-SS (state-space, predicted-k)",   os.path.join(LOSO, f"{site}_s{seed}_ldiur_ss_predk"), "torch"),
             ("WN-SS (given-diurnal, st-sp)", os.path.join(LOSO, f"{site}_s{seed}_diur_ss"), "torch_struct"),
             ("WN-SS (given-diurnal, Wiener)",os.path.join(LOSO, f"{site}_s{seed}_diur_wien"), "torch"),
-            # --- baselines at their manuscript likelihoods (matched-loss gap comparison) ---
+            # --- baselines (matched-loss gap comparison) ---
             ("Neural SDE (Gaussian)",  os.path.join(FL, f"comp_neuralsde_{site}_s{seed}"), "torch"),
             ("Neural SDE (Student-t)", os.path.join(LOSO, f"{site}_s{seed}_base_nsde_studt"), "torch"),
             ("Neural SDE (ALD)",       os.path.join(LOSO, f"{site}_s{seed}_base_nsde_ald"), "torch"),
@@ -402,13 +387,13 @@ if __name__ == "__main__":
     ap.add_argument("--merge", action="store_true", help="merge per-seed CSVs + write the summary")
     ap.add_argument("--cpu-ok", action="store_true", help="allow CPU (default: require CUDA)")
     ap.add_argument("--checkpoint", choices=["best", "last"], default="last",
-                    help="which checkpoint to roll out; 'best' is TEST-SELECTED here (see module note)")
+                    help="which checkpoint to roll out")
     ap.add_argument("--prefer-root", default=None,
                     help="prefer same-named runs under this root (e.g. outputs/ss_lrfix)")
     a = ap.parse_args()
     CHECKPOINT = a.checkpoint
     if CHECKPOINT != "last":
-        print(f"### rolling out {CHECKPOINT}.pth — TEST-SELECTED checkpoint, optimistic bound ###")
+        print(f"### rolling out {CHECKPOINT}.pth ###")
     if a.prefer_root:
         PREFER_ROOT = os.path.abspath(a.prefer_root)
         print(f"### preferring runs under {PREFER_ROOT} where they exist ###")

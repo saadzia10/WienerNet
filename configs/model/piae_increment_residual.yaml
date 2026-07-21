@@ -1,8 +1,7 @@
 # Increment-based Euler–Maruyama SDE — VERSION A (residual + zero-mean noise).
 #   dNEE = (f_phys + r)*dt + sigma*sqrt(dt)*Z ;  nee_pred = NEE_t + dNEE
-# r(z) is the drift-misfit diagnostic ("where Lloyd-Taylor is biased"); the
-# noise is pure aleatoric. Pair with loss=increment_residual (residual_l2 on).
-# See docs/increment_sde_model_plan.md.
+# r(z) is the drift-misfit correction; the noise is pure aleatoric.
+# Pair with loss=increment_residual (residual_l2 on).
 variant: piae_increment_residual
 
 latent_dim: 32
@@ -29,7 +28,7 @@ dt: 30.0
 
 # Encoder inputs — fully exogenous (increment reformulation): bNEE is the Euler
 # integration boundary only, E0/rb are PREDICTED (anchored) not fed, dTa predicted.
-# Flip any include_* to feed the GT instead (see InputsConfig clean-prediction caveat).
+# Flip any include_* to feed the GT instead.
 inputs:
   include_bnee: false
   include_k: false
@@ -43,14 +42,14 @@ physics_k_source: predicted
 # null disables. Inert for real drift (~0.17/min); prevents catastrophic amplification.
 drift_clamp: 1.0
 
-# Terminal noise-model options (Workstream F). asymmetry adds ALD log_kappa (or set
+# Terminal noise-model options. asymmetry adds ALD log_kappa (or set
 # loss=nll_ald); mixture_components>1 = zero-mean mixture noise head on the SDE.
 noise_asymmetry: false
 noise_mixture_components: 1
 # Physics-anchored heteroscedastic scale: sigma *= softplus(a)+softplus(b)*Reco.
-# Ties the aleatoric noise std to the respiration magnitude (fixes the L1/ALD
-# high-flux under-coverage). Applies to the NOISE branch only — the residual r(z)
-# stays a deterministic drift-misfit correction. null/false = free sigma head only.
+# Ties the aleatoric noise std to the respiration magnitude. Applies to the NOISE
+# branch only — the residual r(z) stays a deterministic drift-misfit correction.
+# null/false = free sigma head only.
 noise_physics_scale: false
 noise_physics_scale_b: 0.25   # init Reco->sigma coupling softplus(b) when noise_physics_scale=true
 

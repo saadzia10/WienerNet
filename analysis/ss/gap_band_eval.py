@@ -1,24 +1,22 @@
 #!/usr/bin/env python
-"""Gap-fill BAND evaluation + the NEXT-2 structural-error fix.
+"""Gap-fill BAND evaluation with the structural-error term.
 
-For a trained run we reconstruct the flux across synthetic multi-day GAPS: the mean is the
-physics level (temperature is measured through the gap); the question is the UNCERTAINTY
-BAND. The one-step CRPS sweep cannot see this — it only scores single increments.
+For a trained run the flux is reconstructed across synthetic multi-day GAPS: the mean is the
+physics level (temperature is measured through the gap) and the quantity scored is the
+UNCERTAINTY BAND.
 
-The band must carry EVERY source of gap uncertainty:
-  * measurement noise  sigma_meas         — flat        (aleatoric head)
+Band components:
+  * measurement noise  sigma_meas          — flat         (aleatoric head)
   * process/accumulation sigma_proc*sqrt(t)— grows sqrt(t) (state-space head)
-  * STRUCTURAL error   sigma_struct        — flat        (NEW: missing soil drivers)
+  * structural error   sigma_struct        — flat         (missing soil drivers)
 
-The state-space band used only the first two and UNDER-COVERED, because the dominant gap
-uncertainty is structural (Reco(T_air) misses the soil signal). This script now reports,
-per site, the fix from analysis/ss/structural.py:
-  (A) +soil MEAN  : reconstruct with a + b*Reco(Ta) + c*Tsoil1  -> smaller residual
-  (B) +struct BAND: add sigma_struct (out-of-sample, from TRAIN residuals) in quadrature
+Per site, this script reports the two components from analysis/ss/structural.py:
+  (A) +soil MEAN  : reconstruct with a + b*Reco(Ta) + c*Tsoil1
+  (B) +struct BAND: add sigma_struct (from TRAIN residuals) in quadrature
 
-Bands compared: old state-space (meas+proc) vs fixed (meas+struct+proc), each with the
-Reco-only mean and the +soil mean. sigma_struct is estimated on the TRAIN sites and applied
-to the held-out TEST site, so the band is genuinely out-of-sample. Nominal coverage = 90%.
+Bands compared: state-space (meas+proc) vs fixed (meas+struct+proc), each with the Reco-only
+mean and the +soil mean. sigma_struct is estimated on the TRAIN sites and applied to the
+held-out TEST site. Nominal coverage = 90%. Writes analysis/ss/gap_band_fix.csv.
 """
 from __future__ import annotations
 import os, sys
@@ -76,8 +74,8 @@ def run_forward(run_dir, device="cpu"):
 
 
 def _coverage(test_df, predict_mean, sigma_struct, gap_days=(3, 7, 14)):
-    """Walk synthetic gaps; return per-gaplen coverage for old (meas+proc) and fixed
-    (meas+struct+proc) bands, plus the mean-reconstruction RMSE."""
+    """Walk synthetic gaps; return per-gaplen coverage for the plain (meas+proc) and the
+    structural (meas+struct+proc) bands, plus the mean-reconstruction RMSE."""
     df = test_df.copy()
     df["recon"] = predict_mean(df)
     t0all = df["DateTime"].values
@@ -111,7 +109,7 @@ def _coverage(test_df, predict_mean, sigma_struct, gap_days=(3, 7, 14)):
 
 
 def evaluate_run(run_dir, device="cpu"):
-    """Full NEXT-2 comparison for one run. Returns a dict of tables."""
+    """Full band comparison for one run. Returns a dict of tables."""
     train_df, test_df = run_forward(run_dir, device=device)
     sm_bar = float(np.nanmean(test_df["sigma_meas"].values))
     # sigma_struct estimated OUT-OF-SAMPLE on train sites, for Reco-only vs +soil mean
@@ -157,7 +155,7 @@ def main():
         except Exception as e:
             import traceback; traceback.print_exc(); print(f"{site}: ERROR {e}"); continue
         for j, D in enumerate((3, 7, 14)):
-            g = r["soil_mean"][D]       # headline: +soil mean + fixed band
+            g = r["soil_mean"][D]       # +soil mean + fixed band
             lead = (f"{site:<12}{r['resid_std_reco']:>12.2f}{r['resid_std_soil']:>8.2f}"
                     f"{r['sigma_struct_soil']:>9.2f}") if j == 0 else " " * 41
             print(f"{lead}{str(D)+'d':>5}{g['rmse']:>7.2f}{g['old_near']:>9.2f}{g['old_far']:>8.2f}"

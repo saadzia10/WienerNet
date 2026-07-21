@@ -1,4 +1,4 @@
-# Likelihood loss — Asymmetric-Laplace (ALD) NLL — heavy-tailed AND right-skewed noise (Workstream F.1).
+# Likelihood loss — Asymmetric-Laplace (ALD) NLL — heavy-tailed AND right-skewed noise.
 # proper conditional likelihood of NEE_{t+1} ~ N(nee_mean, exp(nee_log_std)^2):
 # nee_mean (drift/residual) -> conditional mean, exp(nee_log_std) (sigma) ->
 # conditional aleatoric std. No prior to tune; mean & variance don't fight.

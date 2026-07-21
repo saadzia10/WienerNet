@@ -1,5 +1,5 @@
 # @package _global_
-# The paper's headline result: PIAE_SDE_Sampling, 7 seeds, year-based split.
+# PIAE_SDE_Sampling with a year-based split.
 # Use as: python scripts/train.py experiment=paper_main
 defaults:
   - override /model: piae_sde_sampling

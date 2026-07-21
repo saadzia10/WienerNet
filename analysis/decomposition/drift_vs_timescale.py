@@ -1,18 +1,11 @@
 #!/usr/bin/env python
-"""Does the physics DRIFT explain more of the NEE increment as the step grows (30-min → hours → days)?
+"""Model-free explanatory power of the physics drift for the NEE increment, versus timescale.
 
-At the native 30-min step the increment is measurement-noise-dominated, so the drift (respiration
-change) explains ~nothing — which is exactly why the decomposition attributes ~98% of the 30-min
-increment variance to noise. If the drift is genuine physics, its explanatory share should CLIMB as
-we aggregate to hours and days, because the temperature-driven respiration change accumulates while
-independent measurement noise stays ~flat.
-
-We quantify this model-free: the physics-drift increment is ΔReco = Reco(T_{t+k}) − Reco(T_t) (the
-exact-Reco drift telescopes to this over a window), and we score how much of the observed increment
-ΔNEE = NEE_{t+k} − NEE_t it explains, at growing windows: within-night k·30-min, then night/week/month
-aggregate differences. r² = fraction of increment variance explained by the drift ("coverage" of the
-drift). We report ΔReco (the physics drift) and raw ΔTa for reference; sites are z-scored before
-pooling (matching analysis/nee_error_structure/temp_change_timescales.py). Figure: figs/drift_vs_timescale.png.
+The physics-drift increment is ΔReco = Reco(T_{t+k}) − Reco(T_t) (the exact-Reco drift telescopes to
+this over a window), scored against the observed increment ΔNEE = NEE_{t+k} − NEE_t at growing
+windows: within-night k·30-min, then night/week/month aggregate differences. r² = fraction of
+increment variance explained by the drift. ΔReco (the physics drift) and raw ΔTa are both reported;
+sites are z-scored before pooling. Figure: figs/fig_drift_r2_vs_timescale.pdf.
 """
 from __future__ import annotations
 import os

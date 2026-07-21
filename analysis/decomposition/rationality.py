@@ -1,29 +1,21 @@
 #!/usr/bin/env python
-"""How RATIONAL is WienerNet-SS's drift / residual / noise decomposition?
+"""Metrics for WienerNet-SS's drift / residual / noise decomposition.
 
-The interpretability edge: WienerNet-SS splits each increment into an analytic physics drift,
-an optional named residual, and an aleatoric noise, and each term should mean what it claims.
-This script quantifies that on the four in-distribution held-out sites (Redmere 1, the corrupted-
-Tau OOD site, is excluded), pooling the LOSO test predictions, and contrasts it with the
-data-driven Neural SDE (whose 'drift' is a free function) — which has no interpretable
-decomposition to offer.
+Pools the LOSO test predictions over four held-out sites and computes the same metrics for the
+data-driven Neural SDE for comparison.
 
 Increment identity (per row):  NEE_{t+1} = NEE_t + (f_phys + r)*dt + noise ,  noise ≈ N(0, sigma).
-We read the saved component arrays (pred_f = f_phys+r, pred_residual = r, pred_noise, pred_noise_stds)
-and the observed residual eta = NEE - nee_mean (what the noise must explain), and score:
+Reads the saved component arrays (pred_f = f_phys+r, pred_residual = r, pred_noise, pred_noise_stds)
+and the observed residual eta = NEE - nee_mean, and scores:
 
-  1. NOISE zero-mean          — mean(eta) ≈ 0
-  2. NOISE cleanliness        — |corr(eta, Ta)|, |corr(eta, Reco)| ≈ 0  (physics took the T-signal;
-                                the leftover is structureless aleatoric noise, not misfit)
-  3. NOISE magnitude physical — model sigma vs the model-free measurement-error floor (Hollinger-
-                                Richardson): the noise should sit at the irreducible-error scale
-  4. NOISE shape physical     — skew / excess-kurtosis of eta vs the model's noise sample (the ALD
-                                should reproduce the right-skew + heavy tails of real flux noise)
-  5. DRIFT physicality        — is the drift the respiration derivative? For Neural SDE we correlate
-                                its free drift against the physics drift; low corr = not interpretable
-  6. VARIANCE attribution     — fraction of the increment variance the model assigns to drift vs noise
-  7. RESIDUAL isolates misfit — corr(residual, Ta) (residual variant), and whether turning the
-                                residual ON reduces the temperature structure left in the noise
+  1. NOISE zero-mean          — mean(eta)
+  2. NOISE cleanliness        — |corr(eta, Ta)|, |corr(eta, Reco)|
+  3. NOISE magnitude          — model sigma vs the model-free measurement-error floor
+                                (Hollinger-Richardson)
+  4. NOISE shape              — skew / excess-kurtosis of eta vs the model's noise sample
+  5. DRIFT physicality        — correlation of each model's drift against the physics drift
+  6. VARIANCE attribution     — fraction of the increment variance assigned to drift vs noise
+  7. RESIDUAL structure       — corr(residual, Ta) and the residual increment scale
 """
 from __future__ import annotations
 import os, json
@@ -34,7 +26,7 @@ from scipy import stats
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 LOSO = os.path.join(ROOT, "outputs", "ss_loso")
 OUT = os.path.dirname(os.path.abspath(__file__))
-CLEAN = ["woodwalton", "rosedene", "redmere_2", "great_fen"]   # Redmere 1 excluded (corrupted Tau)
+CLEAN = ["woodwalton", "rosedene", "redmere_2", "great_fen"]
 TREF, T0 = 10.0, 46.02
 
 

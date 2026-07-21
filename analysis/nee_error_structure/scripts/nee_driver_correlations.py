@@ -1,17 +1,15 @@
 #!/usr/bin/env python
-"""Exploratory: quantify how NEE-related drivers correlate with nighttime NEE
-and its increment (dNEE), and report data coverage per site.
+"""Quantify how NEE-related drivers correlate with nighttime NEE and its
+increment (dNEE), and report data coverage per site.
 
-Standalone / read-only. Does NOT touch the training pipeline or any existing
-module. Run from the repo root:
+Covers soil temperature depths, soil moisture (VWC), water table, precipitation,
+air temperature Ta and its increment dTa. Reports per-site and pooled (each site
+z-scored per variable before pooling) Pearson correlations.
+
+Run from the repo root:
 
     conda activate pytorch
     python nee_driver_correlations.py
-
-Focus is on the physically-relevant respiration controls that are currently
-*unused* (soil temperature depths beyond Tsoil1, soil moisture VWC, water
-table, precipitation) versus the ones the model already uses (Ta -> drift,
-Tsoil1 -> encoder driver).
 """
 from __future__ import annotations
 
