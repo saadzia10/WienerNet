@@ -1,12 +1,8 @@
 # WienerNet
 
-Physics-informed models for forecasting nighttime ecosystem CO₂ flux (NEE) at UK
-East Anglia flux towers. The dynamics are modelled as an SDE with an analytic
-Lloyd–Taylor respiration drift and a learned stochastic term, trained through a
-Hydra-driven pipeline with composable model heads and loss profiles.
+WienerNet, a stochastic physics-encoded neural network, generalises physics-encoded modelling to Wiener-type SDEs. It embeds a single Euler-Maruyama step in the graph, forecasting the full conditional law of the next observation through five interpretable blocks. This approach confers robustness and provides interpretable attributions for predicted variance.
 
-Reference: Houpert C., Zia S. et al., *Physics-informed VAE for enhancing
-forecast reliability of CO₂ emissions from agricultural farms.*
+Reference: Zia M.S., Houpert C., et al., *WienerNet: Embedding the Physics of Noise in Stochastic Digital Twins*
 
 ---
 
